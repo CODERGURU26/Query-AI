@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from google import genai
 
 from schema import get_llm_schema_context
+from sql_executor import execute_sql
 
 
 load_dotenv()
@@ -60,10 +61,24 @@ def clean_sql(response_text):
 
     sql = response_text.strip()
 
-    # Remove markdown code fences if the model still returns them.
-    sql = re.sub(r"^```sql\s*", "", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"^```\s*", "", sql)
-    sql = re.sub(r"\s*```$", "", sql)
+    sql = re.sub(
+        r"^```sql\s*",
+        "",
+        sql,
+        flags=re.IGNORECASE
+    )
+
+    sql = re.sub(
+        r"^```\s*",
+        "",
+        sql
+    )
+
+    sql = re.sub(
+        r"\s*```$",
+        "",
+        sql
+    )
 
     return sql.strip()
 
@@ -99,6 +114,7 @@ def validate_sql(sql):
     ]
 
     for keyword in forbidden:
+
         if keyword in normalized:
             raise ValueError(
                 f"Unsafe SQL detected: {keyword.strip()}"
@@ -138,7 +154,7 @@ def generate_sql(question):
 def main():
 
     print("=" * 80)
-    print("QUERYAI SQL GENERATOR")
+    print("QUERYAI")
     print("=" * 80)
 
     question = input("\nEnter your question: ").strip()
@@ -149,6 +165,10 @@ def main():
 
     try:
 
+        # --------------------------------------------------
+        # STEP 1: Generate SQL
+        # --------------------------------------------------
+
         sql = generate_sql(question)
 
         print("\n" + "=" * 80)
@@ -157,8 +177,32 @@ def main():
 
         print(sql)
 
+        # --------------------------------------------------
+        # STEP 2: Execute SQL
+        # --------------------------------------------------
+
         print("\n" + "=" * 80)
-        print("SQL GENERATION SUCCESSFUL")
+        print("EXECUTING SQL")
+        print("=" * 80)
+
+        result = execute_sql(sql)
+
+        # --------------------------------------------------
+        # STEP 3: Display result
+        # --------------------------------------------------
+
+        print("\n" + "=" * 80)
+        print("QUERY RESULT")
+        print("=" * 80)
+
+        if result.empty:
+            print("No results found.")
+
+        else:
+            print(result.to_string(index=False))
+
+        print("\n" + "=" * 80)
+        print("QUERY EXECUTION SUCCESSFUL")
         print("=" * 80)
 
     except Exception as e:
