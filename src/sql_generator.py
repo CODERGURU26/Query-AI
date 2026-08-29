@@ -189,15 +189,12 @@ def main():
         result = execute_sql(sql)
 
         # --------------------------------------------------
-        # STEP 3: Display result
+        # STEP 3: Display raw query result
         # --------------------------------------------------
-        answer = interpret_result(question, result)
 
         print("\n" + "=" * 80)
         print("QUERY RESULT")
         print("=" * 80)
-
-        print(answer)
 
         if result.empty:
             print("No results found.")
@@ -205,9 +202,24 @@ def main():
         else:
             print(result.to_string(index=False))
 
+        # --------------------------------------------------
+        # STEP 4: Interpret result
+        # --------------------------------------------------
+
+        print("\n" + "=" * 80)
+        print("QUERYAI ANSWER")
+        print("=" * 80)
+
+        answer = interpret_result(question, result)
+
+        print(answer)
+
+
         print("\n" + "=" * 80)
         print("QUERY EXECUTION SUCCESSFUL")
         print("=" * 80)
+
+       
 
     except Exception as e:
 

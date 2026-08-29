@@ -6,13 +6,15 @@ from database import engine
 
 def execute_sql(sql_query: str) -> pd.DataFrame:
     """
-    Execute a read-only SQL query and return the result as a DataFrame.
+    Execute a read-only SQL query and return
+    the database result as a pandas DataFrame.
     """
 
     if not sql_query or not sql_query.strip():
         raise ValueError("SQL query is empty.")
 
     with engine.connect() as connection:
+
         result = connection.execute(text(sql_query))
 
         if not result.returns_rows:
