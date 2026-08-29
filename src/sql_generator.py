@@ -2,251 +2,150 @@ import os
 import re
 
 from dotenv import load_dotenv
+from google import genai
 
-from schema_manager import get_schema_context
+from schema import get_llm_schema_context
 
-
-# -------------------------------------------------------------------
-# ENVIRONMENT
-# -------------------------------------------------------------------
 
 load_dotenv()
 
 
-# -------------------------------------------------------------------
-# LLM CONFIGURATION
-# -------------------------------------------------------------------
-
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
-    raise ValueError(
-        "GEMINI_API_KEY is not configured in the .env file."
-    )
+    raise ValueError("GEMINI_API_KEY is not configured.")
 
 
-# -------------------------------------------------------------------
-# GEMINI CLIENT
-# -------------------------------------------------------------------
+client = genai.Client(api_key=API_KEY)
 
-from google import genai
+MODEL = "gemini-3.6-flash"
 
-
-client = genai.Client(
-    api_key=API_KEY
-)
-
-
-MODEL_NAME = "gemini-2.5-flash"
-
-
-# -------------------------------------------------------------------
-# SQL GENERATION PROMPT
-# -------------------------------------------------------------------
 
 SYSTEM_PROMPT = """
-You are QueryAI, an expert PostgreSQL SQL generation assistant.
+You are QueryAI, an expert PostgreSQL SQL generator.
 
-Your job is to convert a user's natural-language question into
-a correct PostgreSQL SQL query.
+Your job is to convert a user's natural-language question
+into a valid PostgreSQL SQL query.
 
-You are working with Brazilian Olist e-commerce data.
+You have access ONLY to the database schema provided below.
 
-IMPORTANT RULES:
+Rules:
 
-1. Generate PostgreSQL-compatible SQL only.
+1. Generate PostgreSQL SQL only.
+2. Use only tables and columns that exist in the schema.
+3. Respect the relationships between tables.
+4. Never invent tables or columns.
+5. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE,
+   TRUNCATE, or other destructive SQL.
+6. Only generate read-only SELECT queries.
+7. Use appropriate JOIN conditions.
+8. Use meaningful aliases.
+9. Prefer clear and efficient SQL.
+10. Return ONLY the SQL query.
+11. Do not wrap the query in markdown code fences.
+12. If the question cannot be answered using the available schema,
+    return exactly:
 
-2. Use ONLY tables and columns provided in the database schema.
+UNANSWERABLE
 
-3. Never invent tables or columns.
+DATABASE SCHEMA:
 
-4. Respect the relationships provided in the schema.
-
-5. Use explicit JOIN conditions.
-
-6. Prefer readable SQL.
-
-7. Use meaningful aliases.
-
-8. Do not use SELECT * unless the user explicitly asks for all columns.
-
-9. For ranking questions such as "top 10", use ORDER BY and LIMIT.
-
-10. For aggregation questions, use appropriate GROUP BY clauses.
-
-11. Use SUM, COUNT, AVG, MIN, MAX and other aggregation functions
-    when appropriate.
-
-12. When calculating revenue from order items, normally use:
-       SUM(price)
-    unless the user explicitly asks to include freight.
-
-13. When calculating order-item revenue, do not accidentally multiply
-    rows by joining another one-to-many table unnecessarily.
-
-14. When dates are stored as TEXT, cast them to timestamp when
-    performing date operations.
-
-15. Do not modify database data.
-
-16. Never generate:
-       INSERT
-       UPDATE
-       DELETE
-       DROP
-       ALTER
-       TRUNCATE
-       CREATE
-       GRANT
-       REVOKE
-
-17. Only generate read-only SQL.
-
-18. Return ONLY the SQL query.
-
-Do not include:
-
-- Markdown code fences
-- Explanations
-- Comments
-- "Here is the SQL"
-- Additional text
 """
 
 
-# -------------------------------------------------------------------
-# SQL CLEANING
-# -------------------------------------------------------------------
-
-def clean_sql(response_text: str) -> str:
+def clean_sql(response_text):
     """
-    Clean the LLM response so that only SQL is returned.
+    Clean SQL returned by the model.
     """
 
     sql = response_text.strip()
 
-    # Remove markdown code fences if the model ignores instructions.
-    sql = re.sub(
-        r"^```(?:sql)?\s*",
-        "",
-        sql,
-        flags=re.IGNORECASE
-    )
+    # Remove markdown code fences if the model still returns them.
+    sql = re.sub(r"^```sql\s*", "", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"^```\s*", "", sql)
+    sql = re.sub(r"\s*```$", "", sql)
 
-    sql = re.sub(
-        r"\s*```$",
-        "",
-        sql
-    )
-
-    # Remove accidental leading/trailing whitespace.
-    sql = sql.strip()
-
-    return sql
+    return sql.strip()
 
 
-# -------------------------------------------------------------------
-# BASIC READ-ONLY CHECK
-# -------------------------------------------------------------------
-
-def is_read_only_sql(sql: str) -> bool:
+def validate_sql(sql):
     """
-    Perform a basic safety check.
-
-    Full SQL validation will be handled later by sql_validator.py.
+    Basic safety validation.
     """
-
-    normalized = sql.strip().lower()
-
-    forbidden_keywords = [
-        "insert",
-        "update",
-        "delete",
-        "drop",
-        "alter",
-        "truncate",
-        "create",
-        "grant",
-        "revoke",
-    ]
-
-    for keyword in forbidden_keywords:
-
-        pattern = rf"\b{keyword}\b"
-
-        if re.search(pattern, normalized):
-            return False
-
-    return normalized.startswith(
-        ("select", "with")
-    )
-
-
-# -------------------------------------------------------------------
-# SQL GENERATOR
-# -------------------------------------------------------------------
-
-def generate_sql(question: str) -> str:
-    """
-    Convert a natural-language question into PostgreSQL SQL.
-    """
-
-    if not question or not question.strip():
-        raise ValueError(
-            "Question cannot be empty."
-        )
-
-    schema_context = get_schema_context()
-
-    prompt = f"""
-{SYSTEM_PROMPT}
-
-DATABASE SCHEMA:
-
-{schema_context}
-
-USER QUESTION:
-
-{question}
-
-Generate the PostgreSQL SQL query now.
-"""
-
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt
-    )
-
-    sql = clean_sql(
-        response.text
-    )
 
     if not sql:
+        raise ValueError("The model returned an empty response.")
+
+    if sql.upper() == "UNANSWERABLE":
+        return False
+
+    normalized = sql.strip().upper()
+
+    if not normalized.startswith("SELECT"):
         raise ValueError(
-            "The LLM returned an empty SQL query."
+            "Generated SQL is not a SELECT statement."
         )
 
-    if not is_read_only_sql(sql):
-        raise ValueError(
-            "Generated SQL failed the basic read-only safety check."
-        )
+    forbidden = [
+        "INSERT ",
+        "UPDATE ",
+        "DELETE ",
+        "DROP ",
+        "ALTER ",
+        "TRUNCATE ",
+        "CREATE ",
+        "GRANT ",
+        "REVOKE ",
+    ]
+
+    for keyword in forbidden:
+        if keyword in normalized:
+            raise ValueError(
+                f"Unsafe SQL detected: {keyword.strip()}"
+            )
+
+    return True
+
+
+def generate_sql(question):
+    """
+    Convert natural-language question into SQL.
+    """
+
+    schema_context = get_llm_schema_context()
+
+    prompt = (
+        SYSTEM_PROMPT
+        + schema_context
+        + "\n\nUSER QUESTION:\n"
+        + question
+    )
+
+    interaction = client.interactions.create(
+        model=MODEL,
+        input=prompt,
+    )
+
+    sql = interaction.output_text
+
+    sql = clean_sql(sql)
+
+    validate_sql(sql)
 
     return sql
 
-
-# -------------------------------------------------------------------
-# CLI TEST
-# -------------------------------------------------------------------
 
 def main():
 
-    print("\n" + "=" * 80)
+    print("=" * 80)
     print("QUERYAI SQL GENERATOR")
     print("=" * 80)
 
-    question = input(
-        "\nEnter your question: "
-    ).strip()
+    question = input("\nEnter your question: ").strip()
+
+    if not question:
+        print("No question provided.")
+        return
 
     try:
 
@@ -258,13 +157,17 @@ def main():
 
         print(sql)
 
-    except Exception as error:
+        print("\n" + "=" * 80)
+        print("SQL GENERATION SUCCESSFUL")
+        print("=" * 80)
+
+    except Exception as e:
 
         print("\n" + "=" * 80)
         print("ERROR")
         print("=" * 80)
 
-        print(error)
+        print(str(e))
 
 
 if __name__ == "__main__":
