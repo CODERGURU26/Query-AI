@@ -8,6 +8,8 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface QueryResponse {
   question: string;
@@ -221,9 +223,10 @@ function Results({ response }: { response: QueryResponse }) {
             AI Insight
           </h2>
         </div>
-
-        <div className="prose prose-invert max-w-none whitespace-pre-wrap text-sm leading-7 text-zinc-300">
-          {response.answer}
+        <div className="prose prose-invert max-w-none text-sm leading-7 text-zinc-300">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {response.answer}
+          </ReactMarkdown>
         </div>
       </div>
 
