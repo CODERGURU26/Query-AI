@@ -6,6 +6,7 @@ from google import genai
 
 from schema import get_llm_schema_context
 from sql_executor import execute_sql
+from result_interpreter import interpret_result
 
 
 load_dotenv()
@@ -190,10 +191,13 @@ def main():
         # --------------------------------------------------
         # STEP 3: Display result
         # --------------------------------------------------
+        answer = interpret_result(question, result)
 
         print("\n" + "=" * 80)
         print("QUERY RESULT")
         print("=" * 80)
+
+        print(answer)
 
         if result.empty:
             print("No results found.")
