@@ -1,104 +1,79 @@
 from sqlalchemy import text
+import pandas as pd
 
 from database import engine
 
 
-FORBIDDEN_KEYWORDS = [
-    "INSERT",
-    "UPDATE",
-    "DELETE",
-    "DROP",
-    "ALTER",
-    "TRUNCATE",
-    "CREATE",
-    "GRANT",
-    "REVOKE",
-]
-
-
-def validate_sql(sql: str):
+def execute_sql(sql_query):
     """
-    Ensure only read-only SQL is executed.
+    Execute a SQL query against PostgreSQL
+    and return the result as a pandas DataFrame.
     """
 
-    if not sql or not sql.strip():
+    if not sql_query or not sql_query.strip():
         raise ValueError("SQL query is empty.")
 
-    normalized_sql = sql.strip().upper()
-
-    if not normalized_sql.startswith("SELECT"):
-        raise ValueError(
-            "Only SELECT queries are allowed."
-        )
-
-    for keyword in FORBIDDEN_KEYWORDS:
-        if f"{keyword} " in normalized_sql:
-            raise ValueError(
-                f"Unsafe SQL detected: {keyword}"
-            )
-
-
-def execute_sql(sql: str):
-    """
-    Execute a validated SQL query and return the results.
-    """
-
-    validate_sql(sql)
-
     with engine.connect() as connection:
-        result = connection.execute(text(sql))
+        result = connection.execute(text(sql_query))
 
-        columns = list(result.keys())
-        rows = result.fetchall()
+        if result.returns_rows:
+            df = pd.DataFrame(
+                result.fetchall(),
+                columns=result.keys()
+            )
+            return df
 
-    return columns, rows
-
-
-def print_results(columns, rows):
-    """
-    Display query results in a readable format.
-    """
-
-    print("\n" + "=" * 80)
-    print("QUERY RESULTS")
-    print("=" * 80)
-
-    if not rows:
-        print("No results found.")
-        return
-
-    print("\n" + " | ".join(columns))
-    print("-" * 80)
-
-    for row in rows:
-        print(" | ".join(str(value) for value in row))
-
-    print("\n" + "=" * 80)
-    print(f"Rows returned: {len(rows)}")
-    print("=" * 80)
+        return pd.DataFrame()
 
 
 def main():
-
     print("=" * 80)
     print("QUERYAI SQL EXECUTOR")
     print("=" * 80)
 
-    sql = input("\nEnter SQL query: ").strip()
+    sql_query = """
+    SELECT
+        COALESCE(
+            t.product_category_name_english,
+            p.product_category_name
+        ) AS product_category,
+        SUM(oi.price) AS total_sales
+    FROM olist_order_items_dataset oi
+    JOIN olist_products_dataset p
+        ON oi.product_id = p.product_id
+    LEFT JOIN product_category_name_translation t
+        ON p.product_category_name = t.product_category_name
+    WHERE p.product_category_name IS NOT NULL
+    GROUP BY
+        COALESCE(
+            t.product_category_name_english,
+            p.product_category_name
+        )
+    ORDER BY total_sales DESC
+    LIMIT 10;
+    """
 
     try:
-
-        columns, rows = execute_sql(sql)
-
-        print_results(columns, rows)
-
-    except Exception as e:
+        df = execute_sql(sql_query)
 
         print("\n" + "=" * 80)
-        print("ERROR")
+        print("QUERY RESULT")
         print("=" * 80)
 
-        print(str(e))
+        if df.empty:
+            print("Query returned no results.")
+        else:
+            print(df.to_string(index=False))
+
+        print("\n" + "=" * 80)
+        print("SQL EXECUTION SUCCESSFUL")
+        print("=" * 80)
+
+    except Exception as error:
+        print("\n" + "=" * 80)
+        print("SQL EXECUTION ERROR")
+        print("=" * 80)
+        print(error)
 
 
 if __name__ == "__main__":
