@@ -1,6 +1,6 @@
 from sqlalchemy import inspect, text
 
-from database import engine
+from src.database import engine
 
 
 def inspect_database():

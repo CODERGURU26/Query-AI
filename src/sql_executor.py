@@ -1,7 +1,7 @@
 import pandas as pd
 from sqlalchemy import text
 
-from database import engine
+from src.database import engine
 
 
 def execute_sql(sql_query: str) -> pd.DataFrame:

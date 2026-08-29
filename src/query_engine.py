@@ -1,7 +1,6 @@
-from sql_generator import generate_sql
-from sql_executor import execute_sql
-from result_interpreter import interpret_result
-
+from src.sql_generator import generate_sql
+from src.sql_executor import execute_sql
+from src.result_interpreter import interpret_result
 
 def process_question(question):
     """

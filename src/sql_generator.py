@@ -4,9 +4,9 @@ import re
 from dotenv import load_dotenv
 from google import genai
 
-from schema import get_llm_schema_context
-from sql_executor import execute_sql
-from result_interpreter import interpret_result
+from src.schema import get_llm_schema_context
+from src.sql_executor import execute_sql
+from src.result_interpreter import interpret_result
 
 
 load_dotenv()
