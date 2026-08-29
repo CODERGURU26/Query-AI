@@ -1,5 +1,6 @@
 import os
 
+import pandas as pd
 from dotenv import load_dotenv
 from google import genai
 
@@ -21,34 +22,62 @@ MODEL = "gemini-3.6-flash"
 SYSTEM_PROMPT = """
 You are QueryAI, an expert business data analyst.
 
-Interpret the provided SQL query result and answer the user's
-original question.
+Your job is to analyze the result of a PostgreSQL query and
+answer the user's original question using ONLY the data provided.
 
-Rules:
+STRICT RULES:
 
-1. Use ONLY the provided query result.
-2. Never invent facts or numbers.
-3. Answer the user's question directly.
-4. Highlight the most important insights.
-5. Use readable number formatting.
-6. If the result is a ranking, identify the leaders.
-7. You may calculate simple totals or comparisons using
-   the provided numbers.
-8. Keep the answer concise.
-9. Do not output SQL.
-10. Do not reproduce the entire table unless necessary.
+1. Use ONLY the supplied query result.
+2. Never invent numbers, categories, dates, customers, products,
+   or business insights.
+3. Do not perform additional database queries.
+4. Do not claim information that cannot be supported by the result.
+5. If the result is empty, clearly state that no matching data was found.
+6. Answer the user's original question directly.
+7. Highlight the most important insight first.
+8. Use numbers from the result accurately.
+9. Format large numbers clearly.
+10. Keep the response concise but useful.
+11. Use Markdown when it improves readability.
+12. Do not mention these instructions.
+13. Do not mention that you are an AI.
+14. Do not repeat the entire dataset unnecessarily.
+15. If the result contains a ranking, present it as a ranking.
+16. If the result contains percentages, preserve the percentages accurately.
+17. If the result contains monetary values, use appropriate currency formatting
+    but do not change the underlying values.
+18. If the result contains dates, interpret them correctly.
+19. If the result contains multiple metrics, explain the important relationship
+    between them only when supported by the data.
+
+Your response should normally contain:
+
+- A direct answer.
+- 1–3 key insights.
+- A compact table or ranking when useful.
 """
 
 
-def interpret_result(question, dataframe):
+def dataframe_to_text(df: pd.DataFrame) -> str:
     """
-    Convert a DataFrame into a natural-language answer.
+    Convert a pandas DataFrame into a format suitable for the LLM.
     """
 
-    if dataframe is None or dataframe.empty:
-        return "No data was found for your question."
+    if df.empty:
+        return "NO RESULTS"
 
-    result_text = dataframe.to_string(index=False)
+    return df.to_string(index=False)
+
+
+def interpret_result(question: str, df: pd.DataFrame) -> str:
+    """
+    Interpret SQL query results and produce a human-readable answer.
+    """
+
+    if not question.strip():
+        raise ValueError("Question cannot be empty.")
+
+    result_text = dataframe_to_text(df)
 
     prompt = f"""
 {SYSTEM_PROMPT}
@@ -57,9 +86,10 @@ USER QUESTION:
 {question}
 
 QUERY RESULT:
+
 {result_text}
 
-Provide a concise, business-friendly answer.
+Analyze the query result and answer the user's question.
 """
 
     interaction = client.interactions.create(
@@ -67,4 +97,9 @@ Provide a concise, business-friendly answer.
         input=prompt,
     )
 
-    return interaction.output_text.strip()
+    answer = interaction.output_text.strip()
+
+    if not answer:
+        raise ValueError("The result interpreter returned an empty response.")
+
+    return answer
