@@ -2,20 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Clock, X, Trash2 } from "lucide-react";
-import {
-  getHistory,
-  clearHistory,
-  getHistoryEntries,
-  addToHistory,
-  formatTime,
-  getSourceLabel,
-  getSourceColor,
-} from "@/lib/history";
+import { clearHistory, getHistoryEntries, getSourceLabel } from "@/lib/history";
 import type { HistoryEntryWithSource } from "@/types/query";
 
 interface QueryHistoryProps {
   onSelect: (question: string) => void;
-  refreshKey: number; // increment when history changes
+  refreshKey: number;
 }
 
 export default function QueryHistory({
@@ -59,16 +51,14 @@ export default function QueryHistory({
                 Recent Queries
               </span>
             </div>
-            {entries.length > 0 && (
-              <button
-                onClick={handleClear}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors"
-                aria-label="Clear history"
-                title="Clear history"
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
+            <button
+              onClick={handleClear}
+              className="text-zinc-600 hover:text-zinc-400 transition-colors"
+              aria-label="Clear history"
+              title="Clear history"
+            >
+              <Trash2 size={13} />
+            </button>
           </div>
 
           <div className="space-y-1">

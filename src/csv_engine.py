@@ -1,19 +1,15 @@
 import os
-import re
-import sqlite3
-import tempfile
+import io
 import time
-import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from dotenv import load_dotenv
 
-from src.csv_parser import parse_csv_content, CSVValidationError
-from src.sql_generator import generate_sql, validate_sql, clean_sql
+from src.sql_generator import validate_sql, clean_sql
 from src.result_interpreter import interpret_result
 from src.llm_client import generate_response
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -60,7 +56,7 @@ def _generate_csv_schema_context(column_names: List[str], column_types: Dict[str
         "   TRUNCATE, GRANT, or REVOKE statements.",
         "5. Only generate read-only SELECT queries.",
         "6. Use WHERE, ORDER BY, LIMIT, GROUP BY as needed.",
-        "6. If the question cannot be answered, return exactly: UNANSWERABLE",
+        "7. If the question cannot be answered, return exactly: UNANSWERABLE",
         "",
         "USER QUESTION:",
     ])
@@ -118,7 +114,7 @@ def _generate_csv_sql(question: str, column_names: List[str], column_types: Dict
     # Validate SQL safety (same validation as PostgreSQL)
     try:
         validate_sql(sql)
-    except ValueError as e:
+    except ValueError:
         return None, True  # Treat validation failure as unanswerable
 
     return sql, False
@@ -130,15 +126,7 @@ def process_csv_question(
 ) -> Dict[str, Any]:
     """
     Process a user question against a CSV dataset.
-
-    Pipeline:
-    1. Retrieve dataset
-    2. Generate SQL using CSV schema
-    3. Execute SQL against SQLite
-    4. Interpret result
-    5. Return structured response
     """
-
     dataset = _dataSets.get(dataset_id)
     if not dataset:
         raise ValueError("CSV dataset not found.")
@@ -169,7 +157,7 @@ def process_csv_question(
     # Step 2: Execute SQL
     try:
         result_df = _execute_sql_against_csv(sql, dataset_id)
-    except ValueError as e:
+    except Exception:
         return {
             "question": question,
             "sql": sql,
@@ -247,7 +235,7 @@ def _generate_visualization_config(
         )
         # Check if all date-like (YYYY-MM-DD)
         all_date = all(
-            isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", v) for v in values
+            isinstance(v, str) and (len(v) >= 10 and v[4] == '-' and v[7] == '-') for v in values
         )
 
         if all_num:
@@ -317,10 +305,6 @@ def _generate_visualization_config(
             "title": f"{value_key} by {category_key}",
         }
 
-    # Rule 4: All numeric → simple summary, return table
-    if len(numeric_cols) > 0 and len(categorical_cols) == 0:
-        return {"type": "table"}
-
     # Default to table
     return {"type": "table"}
 
@@ -331,7 +315,7 @@ def _build_summary(df: pd.DataFrame, columns: List[str]) -> Dict[str, Any]:
     """
     summary: Dict[str, Any] = {}
 
-    numeric_cols = [col for col in columns if pd.api.types.is_numeric_dtype(df[col])]
+    numeric_cols = [col for col in columns if col in df.columns and pd.api.types.is_numeric_dtype(df[col])]
 
     if numeric_cols:
         primary_col = numeric_cols[0]
@@ -351,7 +335,6 @@ def _build_summary(df: pd.DataFrame, columns: List[str]) -> Dict[str, Any]:
 def cleanup_expired_datasets():
     """
     Remove CSV datasets that have exceeded the retention period.
-    Should be called periodically (e.g., on server startup or via cron).
     """
     now = time.time()
     expired_ids = []
@@ -366,7 +349,7 @@ def cleanup_expired_datasets():
 
 
 def _cleanup_dataset(dataset_id: str):
-    """Remove a dataset and its associated SQLite table."""
+    """Remove a dataset from memory."""
     if dataset_id in _dataSets:
         del _dataSets[dataset_id]
 
@@ -383,15 +366,21 @@ csv_datasets = _dataSets
 def initialize_csv_dataset(
     dataset_id: str,
     filename: str,
-    df: pd.DataFrame,
+    df_or_data: Union[pd.DataFrame, bytes, Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
     Initialize a CSV dataset in the in-memory store.
-
-    Returns dataset info.
     """
+    if isinstance(df_or_data, pd.DataFrame):
+        df = df_or_data
+    elif isinstance(df_or_data, bytes):
+        df = pd.read_csv(io.BytesIO(df_or_data))
+    elif isinstance(df_or_data, dict) and "preview_data" in df_or_data:
+        df = pd.DataFrame(df_or_data["preview_data"])
+    else:
+        df = pd.DataFrame(df_or_data)
+
     if dataset_id in _dataSets:
-        # Already exists; remove and recreate
         _cleanup_dataset(dataset_id)
 
     _dataSets[dataset_id] = {

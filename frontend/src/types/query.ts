@@ -8,11 +8,18 @@ export interface QueryResponse {
   columns: string[];
   data: Record<string, unknown>[];
   answer: string;
+  source?: "postgresql" | "csv" | "none";
+  dataset_id?: string;
 }
 
 export interface HistoryEntry {
   question: string;
   timestamp: number;
+}
+
+export interface HistoryEntryWithSource extends HistoryEntry {
+  source: "postgresql" | "csv" | "none";
+  dataset_id?: string;
 }
 
 export type ChartType = "bar" | "horizontal-bar" | "line" | "pie" | "grouped-bar";

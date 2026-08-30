@@ -1,5 +1,3 @@
-import { formatColumnName, formatDisplayValue } from "./formatting";
-
 /**
  * Export data as CSV file.
  * Safely handles commas, quotes, newlines, Unicode, and null values.
@@ -147,7 +145,7 @@ export async function importCSV(file: File): Promise<{
         } else if (/^-?\d+\.?\d*$/.test(trimmed)) {
           record[cleanHeaders[i]] = Number(trimmed);
         } else if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-          record[cleanHeaders[i]] = trimmed; // Keep as string date
+          record[cleanHeaders[i]] = trimmed;
         } else {
           record[cleanHeaders[i]] = trimmed;
         }

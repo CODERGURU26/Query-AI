@@ -1,4 +1,7 @@
 import os
+import io
+import hashlib
+import pandas as pd
 from typing import List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -81,7 +84,6 @@ def health():
 
 @app.post("/query")
 def query_database(request: QueryRequest):
-
     question = request.question.strip()
 
     if not question:
@@ -106,31 +108,35 @@ def query_database(request: QueryRequest):
 
 
 @app.post("/csv/upload")
-def csv_upload(file: UploadFile = File(...)):
+async def csv_upload(file: UploadFile = File(...)):
     """
     Upload and parse a CSV file.
     Returns dataset metadata and ID for subsequent queries.
     """
-    # Read file content
-    content = file.read()
+    try:
+        content = await file.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read uploaded file.")
+
+    filename = file.filename or "upload.csv"
 
     # Validate and parse
     try:
-        parsed = parse_csv_content(file)
+        parsed = parse_csv_content(content, filename)
     except CSVValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail="Could not parse the uploaded CSV file.")
 
-    # Create dataset ID (use a hash-based ID that doesn't expose filesystem paths)
-    import hashlib
+    # Create dataset ID
     dataset_id = hashlib.sha256(
-        f"{parsed['filename']}_{content[:20]}".encode()
+        f"{parsed['filename']}_{content[:20]}_{len(content)}".encode()
     ).hexdigest()[:12]
 
     # Initialize the dataset in memory
     try:
-        info = initialize_csv_dataset(dataset_id, parsed["filename"], parsed)
+        df = pd.read_csv(io.BytesIO(content))
+        initialize_csv_dataset(dataset_id, parsed["filename"], df)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Could not initialize CSV dataset.")
 

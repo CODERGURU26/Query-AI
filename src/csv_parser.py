@@ -16,13 +16,11 @@ MAX_ROWS_DATASET = int(os.getenv("MAX_ROWS_DATASET", "100000"))
 
 class CSVValidationError(Exception):
     """Raised when CSV validation fails."""
-
     pass
 
 
 class CSVParsingError(Exception):
     """Raised when CSV parsing fails."""
-
     pass
 
 
@@ -89,8 +87,7 @@ def validate_file(
 
     # Check column count limit
     if len(headers) > MAX_COLUMNS:
-        return False,
-        f"Too many columns ({len(headers)}). Maximum allowed is {MAX_COLUMNS}."
+        return False, f"Too many columns ({len(headers)}). Maximum allowed is {MAX_COLUMNS}."
 
     return True, ""
 
@@ -236,7 +233,7 @@ def parse_csv_content(
         preview_rows.append(row_dict)
 
     return {
-        "filename": content.filename if hasattr(content, 'filename') else "unknown",
+        "filename": filename,
         "rows": len(data_rows),
         "columns": len(headers),
         "column_names": col_names,

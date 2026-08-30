@@ -4,7 +4,6 @@ import { TrendingUp, Hash, Award } from "lucide-react";
 import {
   formatCompactNumber,
   formatNumber,
-  formatColumnName,
   isCurrencyColumn,
 } from "@/lib/formatting";
 

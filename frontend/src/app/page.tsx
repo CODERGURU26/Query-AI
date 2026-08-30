@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
-import { queryAI, checkHealth } from "@/lib/api";
-import { addToHistory, getHistoryEntries } from "@/lib/history";
-import type { QueryResponse, HistoryEntryWithSource } from "@/types/query";
+import { addToHistory, clearHistory } from "@/lib/history";
+import type { QueryResponse } from "@/types/query";
 
 // Components
 import HealthIndicator from "@/components/HealthIndicator";
 import QueryInput from "@/components/QueryInput";
 import ExampleQuestions from "@/components/ExampleQuestions";
-import QueryHistory from "@/components/QueryHistory";
 import LoadingState from "@/components/LoadingState";
 import AnswerPanel from "@/components/AnswerPanel";
 import KPICards from "@/components/KPICards";
@@ -24,21 +22,27 @@ import CsvUploader from "@/components/CsvUploader";
 import Sidebar from "@/components/Sidebar";
 import SuggestedQuestions from "@/components/SuggestedQuestions";
 
+interface CsvDataset {
+  dataset_id: string | null;
+  filename: string | null;
+  rows: number;
+  columns: number;
+  schema: { name: string; type: string }[];
+  preview_data?: Record<string, unknown>[];
+}
+
 export default function Home() {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState<QueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [historyKey, setHistoryKey] = useState(0);
-  const [csvDataset, setCsvDataset] = useState<{
-    dataset_id: string | null;
-    filename: string | null;
-  } | null>(null);
+  const [csvDataset, setCsvDataset] = useState<CsvDataset | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-  async function handleAsk() {
-    const trimmedQuestion = question.trim();
+  async function handleAsk(overrideQuestion?: string) {
+    const trimmedQuestion = (overrideQuestion ?? question).trim();
     if (!trimmedQuestion || loading) return;
 
     setLoading(true);
@@ -62,7 +66,7 @@ export default function Home() {
         if (!dataResp.ok) {
           throw new Error(result.detail || "CSV query failed.");
         }
-        data = result as QueryResponse;
+        data = { ...result, source: (result.source as "csv" | "postgresql" | "none") || "csv" };
       } else {
         // Query against PostgreSQL
         const dataResp = await fetch(`${apiUrl}/query`, {
@@ -74,9 +78,10 @@ export default function Home() {
         if (!dataResp.ok) {
           throw new Error(result.detail || "QueryAI couldn't answer this question.");
         }
-        data = result as QueryResponse;
+        data = { ...result, source: "postgresql" };
       }
 
+      setQuestion(trimmedQuestion);
       setResponse(data);
       // Save to query history
       addToHistory(trimmedQuestion, data.source || "postgresql", csvDataset?.dataset_id || undefined);
@@ -104,8 +109,6 @@ export default function Home() {
     setQuestion("");
     setResponse(null);
     setError("");
-    // Preserve CSV dataset - do NOT remove it when clicking New Query
-    // Preserve history - it's managed by addToHistory
   }
 
   return (
@@ -127,7 +130,7 @@ export default function Home() {
             </div>
           </div>
 
-          <DataSourceStatus onSelectHistory={() => {/* */} }/>
+          <DataSourceStatus onSelectHistory={handleSelectQuestion} />
           <HealthIndicator />
         </div>
       </header>
@@ -138,14 +141,13 @@ export default function Home() {
         <Sidebar
           onSelectQuestion={handleSelectQuestion}
           onClearHistory={() => {
-            const { clearHistory } = require("@/lib/history");
             clearHistory();
             setHistoryKey((prev) => prev + 1);
           }}
           onNewQuery={handleNewQuery}
           currentSource={csvDataset ? "csv" : "postgresql"}
-          currentDatasetId={csvDataset?.dataset_id}
-          refreshHistory={() => setHistoryKey((prev) => prev + 1)}
+          currentDatasetId={csvDataset?.dataset_id ?? undefined}
+          refreshKey={historyKey}
         />
 
         {/* Main Console */}
@@ -155,14 +157,14 @@ export default function Home() {
             <QueryInput
               value={question}
               onChange={setQuestion}
-              onSubmit={handleAsk}
+              onSubmit={() => handleAsk()}
               loading={loading}
             />
 
             <ExampleQuestions onSelect={handleSelectQuestion} disabled={loading} />
             <SuggestedQuestions
               response={response}
-              onSelect={handleAsk}
+              onSelect={(q) => handleAsk(q)}
               csvDataset={csvDataset}
             />
           </section>
@@ -188,9 +190,9 @@ export default function Home() {
                 <SmartChart columns={response.columns} data={response.data} />
 
                 {/* Raw Dataset Table View */}
-                {response.source === "csv" && csvDataset
-                  ? <DataTable columns={response.columns} data={response.data} />
-                  : response && response.columns.length > 0 && <DataTable columns={response.columns} data={response.data} />}
+                {response.columns.length > 0 && (
+                  <DataTable columns={response.columns} data={response.data} />
+                )}
 
                 {/* Transparent Technical Details */}
                 <SQLViewer sql={response.sql} />
@@ -200,11 +202,12 @@ export default function Home() {
             {/* 4. Empty Landing State */}
             {!response && !loading && !error && <EmptyState />}
 
-            {/* 5. CSV Uploader - shown when a CSV dataset is loaded */}
+            {/* 5. CSV Uploader */}
             {csvDataset && !response && (
               <CsvUploader
                 dataset={csvDataset}
-                onQuestion={handleAsk}
+                onQuestion={(q) => (q ? handleAsk(q) : undefined)}
+                onUploadComplete={(uploaded) => setCsvDataset(uploaded)}
               />
             )}
           </section>

@@ -18,7 +18,11 @@ function getHistory(): HistoryEntryWithSource[] {
   }
 }
 
-export function addToHistory(question: string, source: "postgresql" | "csv" | "none" = "postgresql", dataset_id?: string): void {
+export function addToHistory(
+  question: string,
+  source: "postgresql" | "csv" | "none" = "postgresql",
+  dataset_id?: string
+): void {
   try {
     const trimmed = question.trim();
     if (!trimmed) return;
@@ -45,7 +49,7 @@ export function addToHistory(question: string, source: "postgresql" | "csv" | "n
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   } catch {
-    // localStorage may be unavailable (e.g. private browsing)
+    // localStorage may be unavailable
   }
 }
 
@@ -63,17 +67,13 @@ export function getHistoryEntries(): HistoryEntryWithSource[] {
 
 /**
  * Checks whether a given dataset_id is present among any stored history entries.
- * This only confirms the id was seen locally — it does not verify the dataset
- * still exists on the backend (e.g. an uploaded CSV cleared from server memory
- * after a restart would still "exist" here). If that distinction matters,
- * replace this with an async check against your backend instead.
  */
 export function datasetExists(dataset_id: string): boolean {
   if (!dataset_id) return false;
   return getHistory().some((entry) => entry.dataset_id === dataset_id);
 }
 
-function formatTime(timestamp: number): string {
+export function formatTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "Just now";

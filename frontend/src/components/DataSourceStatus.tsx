@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, usePathname } from "next/navigation";
-import { Database, CloudDownload, Upload } from "lucide-react";
-import { getHistoryEntries, getSourceLabel, getSourceColor, datasetExists } from "@/lib/history";
+import { Database, CloudDownload } from "lucide-react";
+import { getHistoryEntries, datasetExists } from "@/lib/history";
+import { checkHealth } from "@/lib/api";
 
 interface DataSourceStatusProps {
-  onSelectHistory?: () => void;
+  onSelectHistory?: (question: string) => void;
 }
 
 export default function DataSourceStatus({ onSelectHistory }: DataSourceStatusProps) {
@@ -15,33 +15,21 @@ export default function DataSourceStatus({ onSelectHistory }: DataSourceStatusPr
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    checkPostgreSqlConnection();
+    checkHealth().then((healthy) => {
+      setPostgreSqlConnected(healthy);
+    });
+
     // Check history for last CSV dataset
     const history = getHistoryEntries();
     const lastCsvEntry = history.find((entry) => entry.source === "csv" && entry.dataset_id);
-    if (lastCsvEntry && datasetExists(lastCsvEntry.dataset_id)) {
+    if (lastCsvEntry?.dataset_id && datasetExists(lastCsvEntry.dataset_id)) {
       setCsvLoaded({
         dataset_id: lastCsvEntry.dataset_id,
-        filename: ` ${lastCsvEntry.question.substring(0, 30)}...`, // Simplified - ideally store filename separately
+        filename: ` ${lastCsvEntry.question.substring(0, 30)}...`,
       });
     }
     setIsLoading(false);
   }, []);
-
-  const checkPostgreSqlConnection = async () => {
-    try {
-      const res = await fetch("/api/health");
-      const data = await res.json();
-      setPostgreSqlConnected(data.status === "healthy");
-    } catch {
-      setPostgreSqlConnected(false);
-    }
-  };
-
-  const handleSelect = (question: string) => {
-    // Restore query from history
-    onSelectHistory?.();
-  };
 
   const renderStatus = () => {
     if (isLoading) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Menu, Trash2, Sparkles } from "lucide-react";
+import { X, Trash2, Sparkles } from "lucide-react";
 import { getHistoryEntries, getSourceLabel, datasetExists } from "@/lib/history";
 import type { HistoryEntryWithSource } from "@/types/query";
 
@@ -9,38 +9,34 @@ interface SidebarProps {
   onSelectQuestion: (question: string) => void;
   onClearHistory: () => void;
   onNewQuery: () => void;
-  currentSource: "postgresql" | "csv" | "none";
+  currentSource?: "postgresql" | "csv" | "none";
   currentDatasetId?: string;
-  refreshHistory: () => void;
+  refreshKey?: number;
 }
 
 const SOURCE_DOT_COLOR: Record<string, string> = {
-  postgresql: "#10b981", // emerald-500
-  csv: "#8b5cf6", // violet-500
-  none: "#71717a", // zinc-500
+  postgresql: "#10b981",
+  csv: "#8b5cf6",
+  none: "#71717a",
 };
 
 export default function Sidebar({
   onSelectQuestion,
   onClearHistory,
   onNewQuery,
-  currentSource,
-  currentDatasetId,
-  refreshHistory,
+  refreshKey = 0,
 }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false); // desktop collapse
-  const [mobileOpen, setMobileOpen] = useState(false); // mobile drawer
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [entries, setEntries] = useState<HistoryEntryWithSource[]>([]);
 
   useEffect(() => {
     setEntries(getHistoryEntries());
-  }, [refreshHistory]);
+  }, [refreshKey]);
 
   const handleSelect = (entry: HistoryEntryWithSource) => {
     if (entry.source === "csv" && entry.dataset_id && !datasetExists(entry.dataset_id)) {
-      // Dataset no longer available locally — still let the parent decide
-      // how to handle it (e.g. show a toast/warning) rather than silently
-      // failing here.
+      // Dataset no longer available locally
     }
     onSelectQuestion(entry.question);
   };
@@ -98,31 +94,21 @@ export default function Sidebar({
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex lg:flex-col fixed top-0 left-0 h-full border-r border-white/10 bg-zinc-950 transition-all duration-300 ${
+        className={`hidden lg:flex lg:flex-col shrink-0 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.02] transition-all duration-300 ${
           isCollapsed ? "w-16" : "w-64"
         }`}
         aria-label="Query sidebar"
       >
-        <div className="flex h-16 items-center justify-between px-4 border-b border-white/10 bg-white/[0.03]">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-white/10">
           {!isCollapsed ? (
             <>
-              <div className="flex items-center gap-3 min-w-0">
-                <Sparkles size={20} className="text-violet-400 shrink-0" />
-                <div className="min-w-0">
-                  <span className="text-lg font-semibold tracking-tight text-white block truncate">
-                    QueryAI
-                  </span>
-                  <span className="text-[10px] text-zinc-500 block truncate">
-                    Ask questions about your data
-                  </span>
-                </div>
-              </div>
+              <span className="text-sm font-medium text-zinc-300">Sidebar</span>
               <button
                 onClick={() => setIsCollapsed(true)}
                 className="p-2 rounded-md hover:bg-white/[0.05] transition-colors shrink-0"
                 aria-label="Collapse sidebar"
               >
-                <X size={18} className="text-zinc-400" />
+                <X size={16} className="text-zinc-400" />
               </button>
             </>
           ) : (
@@ -131,13 +117,13 @@ export default function Sidebar({
               className="mx-auto p-2 rounded-md hover:bg-white/[0.05] transition-colors"
               aria-label="Expand sidebar"
             >
-              <Sparkles size={20} className="text-violet-400" />
+              <Sparkles size={18} className="text-violet-400" />
             </button>
           )}
         </div>
 
         {!isCollapsed && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="p-4 space-y-4">
             <button
               onClick={onNewQuery}
               className="w-full flex items-center justify-between rounded-xl px-4 py-3 text-left transition-all hover:bg-white/[0.05] hover:text-white"
@@ -172,9 +158,7 @@ export default function Sidebar({
       )}
 
       {mobileOpen && (
-        <div
-          className="fixed inset-y-0 left-0 z-50 flex flex-col lg:hidden w-72 max-w-[calc(100vw-4rem)] overflow-y-auto rounded-e-2xl bg-zinc-900 p-6 animate-in slide-in-from-left duration-300"
-        >
+        <div className="fixed inset-y-0 left-0 z-50 flex flex-col lg:hidden w-72 max-w-[calc(100vw-4rem)] overflow-y-auto rounded-e-2xl bg-zinc-900 p-6 animate-in slide-in-from-left duration-300">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-zinc-400">
               <Sparkles size={14} className="text-violet-400" />

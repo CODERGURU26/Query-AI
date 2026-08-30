@@ -1,29 +1,28 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { FileText, Loader2, Check, X, Trash, AlertCircle } from "lucide-react";
+import { FileText, Loader2, AlertCircle } from "lucide-react";
 import { csvUpload } from "@/lib/api";
 import { formatColumnName, formatNumber, isCurrencyColumn } from "@/lib/formatting";
-import SmartChart from "./SmartChart";
-import KPICards from "./KPICards";
-import DataTable from "./DataTable";
 
-interface CsvUploaderProps {
-  dataset: {
-    dataset_id: string | null;
-    filename: string | null;
-    rows: number;
-    columns: number;
-    schema: { name: string; type: string }[];
-    preview_data: Record<string, unknown>[];
-  } | null;
-  onQuestion: (question: string) => void;
+interface CsvDataset {
+  dataset_id: string | null;
+  filename: string | null;
+  rows: number;
+  columns: number;
+  schema: { name: string; type: string }[];
+  preview_data?: Record<string, unknown>[];
 }
 
-export default function CsvUploader({ dataset, onQuestion }: CsvUploaderProps) {
+interface CsvUploaderProps {
+  dataset: CsvDataset | null;
+  onQuestion: (question: string) => void;
+  onUploadComplete: (dataset: CsvDataset) => void;
+}
+
+export default function CsvUploader({ dataset, onQuestion, onUploadComplete }: CsvUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,12 +36,12 @@ export default function CsvUploader({ dataset, onQuestion }: CsvUploaderProps) {
     setUploadError(null);
 
     try {
-      await csvUpload(file);
-
-      setIsLoaded(true);
+      const result = await csvUpload(file);
+      onUploadComplete({
+        ...result,
+        preview_data: [],
+      });
       setIsUploading(false);
-
-      // Call parent onQuestion with empty question to indicate ready state
       onQuestion("");
     } catch (err: any) {
       setUploadError(err.message || "CSV upload failed.");
@@ -50,7 +49,7 @@ export default function CsvUploader({ dataset, onQuestion }: CsvUploaderProps) {
     }
   };
 
-  if (!isLoaded && !dataset) {
+  if (!dataset) {
     return (
       <div className="px-6 py-8 text-center">
         <div className="mx-auto w-16 h-16 rounded-full bg-violet-500/20 flex items-center justify-center mb-4">
@@ -113,7 +112,6 @@ export default function CsvUploader({ dataset, onQuestion }: CsvUploaderProps) {
     );
   }
 
-  // Upload complete - show data source panel
   return (
     <div className="px-6 py-8">
       {/* Error state */}
@@ -132,7 +130,7 @@ export default function CsvUploader({ dataset, onQuestion }: CsvUploaderProps) {
       )}
 
       {/* Data source panel */}
-      {isLoaded && dataset && !uploadError && (
+      {!uploadError && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-in fade-in duration-500">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400">
@@ -204,12 +202,13 @@ export default function CsvUploader({ dataset, onQuestion }: CsvUploaderProps) {
                           return (
                             <td
                               key={col.name}
-                              className={`px-6 py-3 text-zinc-300 ${isCurrencyColumn(col.name) ? "font-mono text-right" : ""
-                                }`}
+                              className={`px-6 py-3 text-zinc-300 ${
+                                isCurrencyColumn(col.name) ? "font-mono text-right" : ""
+                              }`}
                             >
                               {value !== undefined && value !== null
                                 ? typeof value === "number"
-                                  ? formatNumber(value as number)
+                                ? formatNumber(value as number)
                                   : String(value).replace(/_/g, " ")
                                 : "—"}
                             </td>

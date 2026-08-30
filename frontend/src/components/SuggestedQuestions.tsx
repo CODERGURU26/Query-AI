@@ -3,15 +3,10 @@
 import { useState, useEffect } from "react";
 import { Lightbulb, Sparkles } from "lucide-react";
 import { formatColumnName } from "@/lib/formatting";
+import type { QueryResponse } from "@/types/query";
 
 interface SuggestedQuestionsProps {
-  response: {
-    question: string;
-    columns: string[];
-    data: Record<string, unknown>[];
-    source: "postgresql" | "csv" | "none";
-    dataset_id?: string;
-  } | null;
+  response: QueryResponse | null;
   onSelect: (question: string) => void;
   csvDataset?: {
     dataset_id: string | null;
@@ -47,29 +42,19 @@ export default function SuggestedQuestions({
   }, [response, csvDataset]);
 
   function generateSuggestions(
-    response: {
-      question: string;
-      columns: string[];
-      data: Record<string, unknown>[];
-      source: "postgresql" | "csv" | "none";
-      dataset_id?: string;
-    },
+    response: QueryResponse,
     csvDataset?: { dataset_id: string | null; schema: { name: string; type: string }[] } | null
   ): string[] {
     if (response.source === "csv" && csvDataset && csvDataset.schema) {
-      // Generate suggestions based on CSV column names
       return generateCsvSuggestions(csvDataset.schema);
     }
 
-    // Default suggestions based on available columns
     const { columns } = response;
     if (columns.length === 0) return [];
 
-    // Generate 3-4 suggestions from available columns
     const suggestions: string[] = [];
     const used = new Set<string>();
 
-    // Add suggestions based on first few columns
     for (let i = 0; i < Math.min(columns.length, 4); i++) {
       const col = columns[i];
       if (!used.has(col)) {
@@ -78,14 +63,10 @@ export default function SuggestedQuestions({
       }
     }
 
-    // If we need more suggestions, add generic ones
-    while (suggestions.length < 4) {
-      const defaultIdx = suggestions.length - DEFAULT_SUGGESTIONS.length;
-      if (defaultIdx >= 0 && defaultIdx < DEFAULT_SUGGESTIONS.length) {
-        suggestions.push(DEFAULT_SUGGESTIONS[defaultIdx]);
-      } else {
-        break;
-      }
+    let defaultIdx = 0;
+    while (suggestions.length < 4 && defaultIdx < DEFAULT_SUGGESTIONS.length) {
+      suggestions.push(DEFAULT_SUGGESTIONS[defaultIdx]);
+      defaultIdx++;
     }
 
     return suggestions;
@@ -97,7 +78,6 @@ export default function SuggestedQuestions({
     const suggestions: string[] = [];
     const used = new Set<string>();
 
-    // Separate numeric and text columns
     const numericCols: string[] = [];
     const textCols: string[] = [];
 
@@ -111,22 +91,18 @@ export default function SuggestedQuestions({
       }
     }
 
-    // Add numeric column suggestions (aggregations)
     for (const col of numericCols.slice(0, 3)) {
       suggestions.push(`Total ${formatColumnName(col)}`);
     }
 
-    // Add text column suggestions (distinct values, groupings)
     for (const col of textCols.slice(0, 2)) {
       suggestions.push(`Which ${formatColumnName(col)}...?`);
     }
 
-    // Add top-N suggestions for numeric columns
     if (numericCols.length > 0) {
       suggestions.push(`Top 10 ${formatColumnName(numericCols[0])}`);
     }
 
-    // Fill up to 4 suggestions
     while (suggestions.length < 4) {
       if (suggestions.length < numericCols.length + textCols.length + 1) {
         const nextIdx = suggestions.length;

@@ -1,7 +1,7 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { formatColumnName, formatDisplayValue, formatNumber } from "@/lib/formatting";
+import { formatColumnName, formatDisplayValue } from "@/lib/formatting";
 import { exportCSV as exportNativeCSV } from "@/lib/csv";
 
 interface DataTableProps {
@@ -34,7 +34,6 @@ export default function DataTable({ columns, data }: DataTableProps) {
 
         <ExportButton columns={columns} data={data} />
       </div>
-
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
@@ -109,12 +108,10 @@ function exportCSV(columns: string[], data: Record<string, unknown>[]) {
   }
 
   // Fallback: manual CSV generation
-  // Prepare headers
   const sanitizedColumns = columns.map((col) =>
     `"${col.replace(/"/g, '""')}"`
   );
 
-  // Prepare rows
   const sanitizedRows = data.map((row) =>
     columns.map((col) => {
       const value = row[col];
@@ -122,7 +119,6 @@ function exportCSV(columns: string[], data: Record<string, unknown>[]) {
         return "";
       }
       const strValue = String(value);
-      // If value contains comma, quote, or newline, wrap in quotes
       if (strValue.includes(",") || strValue.includes('"') || strValue.includes("\n")) {
         return `"${strValue.replace(/"/g, '""')}"`;
       }
@@ -130,16 +126,14 @@ function exportCSV(columns: string[], data: Record<string, unknown>[]) {
     })
   );
 
-  // Build CSV string
   const csvString = [sanitizedColumns.join(","), ...sanitizedRows.join("\n")].join("\n");
 
-  // Trigger download
   const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
   link.setAttribute("download", "query-results.csv");
-  link.style("visibility", "hidden");
+  link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

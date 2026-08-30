@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import text
 
-from database import engine
+from src.database import engine
 
 
 DATA_DIR = Path(r"C:\QueryAI\data")
