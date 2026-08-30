@@ -1,4 +1,4 @@
-import type { HistoryEntry } from "@/types/query";
+import type { HistoryEntry, QueryResponse } from "@/types/query";
 
 const STORAGE_KEY = "queryai-history";
 const MAX_ENTRIES = 50;
@@ -6,6 +6,7 @@ const MAX_ENTRIES = 50;
 export interface HistoryEntryWithSource extends HistoryEntry {
   source: "postgresql" | "csv" | "none";
   dataset_id?: string;
+  response?: QueryResponse;
 }
 
 function getHistory(): HistoryEntryWithSource[] {
@@ -21,7 +22,8 @@ function getHistory(): HistoryEntryWithSource[] {
 export function addToHistory(
   question: string,
   source: "postgresql" | "csv" | "none" = "postgresql",
-  dataset_id?: string
+  dataset_id?: string,
+  response?: QueryResponse
 ): void {
   try {
     const trimmed = question.trim();
@@ -34,12 +36,13 @@ export function addToHistory(
       (entry) => !(entry.question.toLowerCase() === trimmed.toLowerCase() && entry.source === source)
     );
 
-    // Add to front
+    // Add to front with full response data
     entries.unshift({
       question: trimmed,
       timestamp: Date.now(),
       source,
       dataset_id,
+      response,
     });
 
     // Cap at max

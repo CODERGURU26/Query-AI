@@ -20,6 +20,7 @@ export interface HistoryEntry {
 export interface HistoryEntryWithSource extends HistoryEntry {
   source: "postgresql" | "csv" | "none";
   dataset_id?: string;
+  response?: QueryResponse;
 }
 
 export type ChartType = "bar" | "horizontal-bar" | "line" | "area" | "pie" | "grouped-bar";
