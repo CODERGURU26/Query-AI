@@ -6,12 +6,13 @@ import { getHistoryEntries, getSourceLabel, datasetExists } from "@/lib/history"
 import type { HistoryEntryWithSource } from "@/types/query";
 
 interface SidebarProps {
-  onSelectQuestion: (question: string) => void;
+  onSelectHistoryEntry: (entry: HistoryEntryWithSource) => void;
   onClearHistory: () => void;
   onNewQuery: () => void;
   currentSource?: "postgresql" | "csv" | "none";
   currentDatasetId?: string;
   refreshKey?: number;
+  activeQuestion?: string;
 }
 
 const SOURCE_DOT_COLOR: Record<string, string> = {
@@ -21,10 +22,11 @@ const SOURCE_DOT_COLOR: Record<string, string> = {
 };
 
 export default function Sidebar({
-  onSelectQuestion,
+  onSelectHistoryEntry,
   onClearHistory,
   onNewQuery,
   refreshKey = 0,
+  activeQuestion,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -38,7 +40,7 @@ export default function Sidebar({
     if (entry.source === "csv" && entry.dataset_id && !datasetExists(entry.dataset_id)) {
       // Dataset no longer available locally
     }
-    onSelectQuestion(entry.question);
+    onSelectHistoryEntry(entry);
   };
 
   function formatTime(timestamp: number): string {
@@ -63,29 +65,36 @@ export default function Sidebar({
         </p>
       )}
       <div className="mt-2 space-y-1">
-        {entries.map((entry, i) => (
-          <div
-            key={i}
-            role="button"
-            tabIndex={0}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all hover:bg-white/[0.05] hover:text-white cursor-pointer"
-            onClick={() => onItemClick(entry)}
-            aria-label={`View history: ${entry.question}`}
-          >
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium text-white">
-                {entry.question}
-              </p>
-              <p className="text-[10px] text-zinc-500 mt-0.5 truncate">
-                {formatTime(entry.timestamp)} · {getSourceLabel(entry.source)}
-              </p>
-            </div>
+        {entries.map((entry, i) => {
+          const isActive = activeQuestion === entry.question;
+          return (
             <div
-              className="w-2 h-2 shrink-0 rounded-full"
-              style={{ backgroundColor: SOURCE_DOT_COLOR[entry.source] ?? SOURCE_DOT_COLOR.none }}
-            />
-          </div>
-        ))}
+              key={`${entry.timestamp}-${i}`}
+              role="button"
+              tabIndex={0}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all cursor-pointer ${
+                isActive
+                  ? "bg-violet-500/15 border border-violet-500/30 text-white font-medium"
+                  : "hover:bg-white/[0.05] text-zinc-300 hover:text-white"
+              }`}
+              onClick={() => onItemClick(entry)}
+              aria-label={`Load chat: ${entry.question}`}
+            >
+              <div className="flex-1 min-w-0">
+                <p className={`truncate text-sm ${isActive ? "text-white font-medium" : "text-zinc-200"}`}>
+                  {entry.question}
+                </p>
+                <p className="text-[10px] text-zinc-500 mt-0.5 truncate">
+                  {formatTime(entry.timestamp)} · {getSourceLabel(entry.source)}
+                </p>
+              </div>
+              <div
+                className="w-2 h-2 shrink-0 rounded-full"
+                style={{ backgroundColor: SOURCE_DOT_COLOR[entry.source] ?? SOURCE_DOT_COLOR.none }}
+              />
+            </div>
+          );
+        })}
       </div>
     </>
   );

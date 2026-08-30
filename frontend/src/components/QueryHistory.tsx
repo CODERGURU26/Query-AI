@@ -6,7 +6,7 @@ import { clearHistory, getHistoryEntries, getSourceLabel } from "@/lib/history";
 import type { HistoryEntryWithSource } from "@/types/query";
 
 interface QueryHistoryProps {
-  onSelect: (question: string) => void;
+  onSelect: (entry: HistoryEntryWithSource) => void;
   refreshKey: number;
 }
 
@@ -65,7 +65,7 @@ export default function QueryHistory({
             {entries.map((entry, i) => (
               <button
                 key={`${entry.timestamp}-${i}`}
-                onClick={() => onSelect(entry.question)}
+                onClick={() => onSelect(entry)}
                 className="w-full text-left rounded-lg px-3 py-2.5 text-sm text-zinc-400 transition-all hover:bg-white/[0.05] hover:text-white group"
                 title={entry.question}
               >
@@ -131,7 +131,7 @@ export default function QueryHistory({
                 <button
                   key={`mobile-${entry.timestamp}-${i}`}
                   onClick={() => {
-                    onSelect(entry.question);
+                    onSelect(entry);
                     setIsOpen(false);
                   }}
                   className="w-full text-left rounded-lg px-3 py-3 text-sm text-zinc-400 transition-all hover:bg-white/[0.05] hover:text-white"

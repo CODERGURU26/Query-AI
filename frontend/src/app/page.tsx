@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { addToHistory, clearHistory } from "@/lib/history";
-import type { QueryResponse } from "@/types/query";
+import type { QueryResponse, HistoryEntryWithSource } from "@/types/query";
 
 // Components
 import HealthIndicator from "@/components/HealthIndicator";
@@ -83,8 +83,8 @@ export default function Home() {
 
       setQuestion(trimmedQuestion);
       setResponse(data);
-      // Save to query history
-      addToHistory(trimmedQuestion, data.source || "postgresql", csvDataset?.dataset_id || undefined);
+      // Save to query history with full response object
+      addToHistory(trimmedQuestion, data.source || "postgresql", csvDataset?.dataset_id || undefined, data);
       // Trigger history list refresh
       setHistoryKey((prev) => prev + 1);
     } catch (err: any) {
@@ -98,10 +98,21 @@ export default function Home() {
 
   function handleSelectQuestion(q: string) {
     setQuestion(q);
-    // Focus the textarea for immediate editing or sending
     const textarea = document.getElementById("query-input");
     if (textarea) {
       textarea.focus();
+    }
+  }
+
+  function handleSelectHistoryEntry(entry: HistoryEntryWithSource) {
+    setQuestion(entry.question);
+    setError("");
+    if (entry.response) {
+      // Instantly restore previous chat response
+      setResponse(entry.response);
+    } else {
+      // Re-run the question if response was not cached
+      handleAsk(entry.question);
     }
   }
 
@@ -139,7 +150,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-7xl flex-1 gap-8 px-6 py-8">
         {/* Sidebar - Query History */}
         <Sidebar
-          onSelectQuestion={handleSelectQuestion}
+          onSelectHistoryEntry={handleSelectHistoryEntry}
           onClearHistory={() => {
             clearHistory();
             setHistoryKey((prev) => prev + 1);
@@ -148,6 +159,7 @@ export default function Home() {
           currentSource={csvDataset ? "csv" : "postgresql"}
           currentDatasetId={csvDataset?.dataset_id ?? undefined}
           refreshKey={historyKey}
+          activeQuestion={question}
         />
 
         {/* Main Console */}
