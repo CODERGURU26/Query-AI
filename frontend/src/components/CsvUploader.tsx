@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { FileText, Loader2, AlertCircle } from "lucide-react";
+import { useState, useRef, DragEvent } from "react";
+import { FileText, Loader2, AlertCircle, Upload, CheckCircle2, X, Table2 } from "lucide-react";
 import { csvUpload } from "@/lib/api";
 import { formatColumnName, formatNumber, isCurrencyColumn } from "@/lib/formatting";
 
-interface CsvDataset {
+export interface CsvDataset {
   dataset_id: string | null;
   filename: string | null;
   rows: number;
@@ -16,19 +16,49 @@ interface CsvDataset {
 
 interface CsvUploaderProps {
   dataset: CsvDataset | null;
-  onQuestion: (question: string) => void;
   onUploadComplete: (dataset: CsvDataset) => void;
+  onClose?: () => void;
+  onClearDataset?: () => void;
 }
 
-export default function CsvUploader({ dataset, onQuestion, onUploadComplete }: CsvUploaderProps) {
+export default function CsvUploader({
+  dataset,
+  onUploadComplete,
+  onClose,
+  onClearDataset,
+}: CsvUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     handleFileUpload(file);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setUploadError("Please drop a valid .csv file.");
+        return;
+      }
+      handleFileUpload(file);
+    }
   };
 
   const handleFileUpload = async (file: File) => {
@@ -42,26 +72,73 @@ export default function CsvUploader({ dataset, onQuestion, onUploadComplete }: C
         preview_data: [],
       });
       setIsUploading(false);
-      onQuestion("");
     } catch (err: any) {
-      setUploadError(err.message || "CSV upload failed.");
+      setUploadError(err.message || "CSV upload failed. Please verify your file format.");
       setIsUploading(false);
     }
   };
 
-  if (!dataset) {
-    return (
-      <div className="px-6 py-8 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-violet-500/20 flex items-center justify-center mb-4">
-          <FileText size={32} className="text-violet-400" />
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/90 backdrop-blur-md p-6 shadow-2xl animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-400">
+            <Upload size={18} />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-white">
+              {dataset ? "Active CSV Dataset" : "Upload Custom CSV"}
+            </h3>
+            <p className="text-xs text-zinc-400">
+              {dataset
+                ? "Query this dataset using natural language"
+                : "Upload any .csv file to analyze it with AI-powered SQL"}
+            </p>
+          </div>
         </div>
 
-        <h3 className="text-xl font-semibold text-white mb-2">Import CSV</h3>
-        <p className="text-zinc-500 mb-6">
-          Upload a CSV file to analyze your data with natural language questions.
-        </p>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        )}
+      </div>
 
-        <div>
+      {/* Error notification */}
+      {uploadError && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 mb-4 flex items-start gap-3">
+          <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-red-200">Upload failed</p>
+            <p className="text-xs text-red-300/80 mt-0.5">{uploadError}</p>
+          </div>
+          <button
+            onClick={() => setUploadError(null)}
+            className="text-red-400 hover:text-red-300 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Upload Zone (when no dataset or to replace) */}
+      {!dataset ? (
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+            isDragging
+              ? "border-violet-400 bg-violet-500/10"
+              : "border-white/10 hover:border-violet-500/40 bg-white/[0.02] hover:bg-white/[0.04]"
+          }`}
+        >
           <input
             type="file"
             accept=".csv"
@@ -69,155 +146,107 @@ export default function CsvUploader({ dataset, onQuestion, onUploadComplete }: C
             className="hidden"
             ref={fileInputRef}
           />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="rounded-xl border border-white/10 bg-white/[0.03] px-6 py-3 text-sm font-medium text-zinc-400 transition-all hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
-            aria-label="Import CSV file"
-          >
+
+          <div className="w-12 h-12 rounded-2xl bg-violet-500/15 flex items-center justify-center mb-3 text-violet-400">
             {isUploading ? (
-              <>
-                <Loader2 size={14} className="mr-2 inline animate-spin" />
-                Uploading...
-              </>
+              <Loader2 size={24} className="animate-spin" />
             ) : (
-              <>
-                <FileText size={14} className="mr-2 inline" />
-                Select CSV file
-              </>
+              <FileText size={24} />
             )}
-          </button>
-        </div>
-
-        {uploadError && (
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 mt-4 text-left">
-            <div className="flex items-center">
-              <AlertCircle size={20} className="mr-2 text-red-300 shrink-0" />
-              <span className="text-red-300 text-sm">{uploadError}</span>
-              <button
-                onClick={() => setUploadError(null)}
-                className="ml-auto text-violet-400 text-sm hover:text-violet-300 transition-colors"
-                aria-label="Dismiss error"
-              >
-                ✕
-              </button>
-            </div>
           </div>
-        )}
 
-        <p className="text-zinc-500 text-sm mt-4">
-          Supported: .csv files with headers, UTF-8 encoding, numeric/text/date columns
-        </p>
-      </div>
-    );
-  }
+          <p className="text-sm font-medium text-white mb-1">
+            {isUploading ? "Uploading and processing dataset..." : "Click or drag & drop CSV file"}
+          </p>
+          <p className="text-xs text-zinc-500 mb-4 text-center">
+            Supports standard CSVs with column headers (UTF-8, up to 50MB)
+          </p>
 
-  return (
-    <div className="px-6 py-8">
-      {/* Error state */}
-      {uploadError && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 mb-6 animate-in fade-in duration-300 flex items-center">
-          <AlertCircle size={20} className="mr-2 text-red-300 shrink-0" />
-          <span className="text-red-300 text-sm">{uploadError}</span>
           <button
-            onClick={() => setUploadError(null)}
-            className="ml-auto text-violet-400 text-sm hover:text-violet-300 transition-colors"
-            aria-label="Dismiss error"
+            type="button"
+            disabled={isUploading}
+            className="rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 px-4 py-2 text-xs font-medium text-white transition-colors"
           >
-            ✕
+            {isUploading ? "Processing..." : "Select File"}
           </button>
         </div>
-      )}
-
-      {/* Data source panel */}
-      {!uploadError && (
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-in fade-in duration-500">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400">
-              <FileText size={14} />
+      ) : (
+        /* Active Dataset Panel */
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-400 shrink-0">
+                <CheckCircle2 size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-white truncate text-sm">
+                  {dataset.filename}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  <span className="text-violet-300 font-mono font-medium">
+                    {formatNumber(dataset.rows)}
+                  </span>{" "}
+                  rows ·{" "}
+                  <span className="text-violet-300 font-mono font-medium">
+                    {dataset.columns}
+                  </span>{" "}
+                  columns
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-white">{dataset.filename}</p>
-              <p className="text-xs text-zinc-500">
-                {dataset.rows} rows · {dataset.columns} columns
-              </p>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                className="hidden"
+                ref={fileInputRef}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors"
+              >
+                Replace CSV
+              </button>
+              {onClearDataset && (
+                <button
+                  onClick={onClearDataset}
+                  className="px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/10 text-xs font-medium text-red-300 hover:bg-red-500/20 transition-colors"
+                >
+                  Return to PostgreSQL
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => onQuestion("")}
-              className="flex-1 rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-2.5 text-sm font-medium text-violet-400 transition-all hover:bg-violet-500/25 hover:text-violet-300"
-              aria-label="Ask questions about this data"
-            >
-              Ask questions about this data
-            </button>
-          </div>
-
-          {/* Schema expandable section */}
+          {/* Schema Explorer */}
           {dataset.schema.length > 0 && (
-            <details className="mt-4">
-              <summary className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400 hover:bg-white/[0.05] transition-colors">
-                View schema
+            <details className="group rounded-xl border border-white/10 bg-white/[0.02] p-4 transition-all">
+              <summary className="flex items-center justify-between cursor-pointer text-xs font-medium text-zinc-400 group-open:text-white">
+                <span className="flex items-center gap-2">
+                  <Table2 size={14} className="text-violet-400" />
+                  Dataset Columns & Schema ({dataset.schema.length} fields)
+                </span>
+                <span className="text-[10px] text-zinc-500 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
               </summary>
-              <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
-                {dataset.schema.map((col, i) => (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-2 border-t border-white/5 max-h-48 overflow-y-auto">
+                {dataset.schema.map((col, idx) => (
                   <div
-                    key={i}
-                    className="flex justify-between text-zinc-400 text-xs"
+                    key={idx}
+                    className="p-2 rounded-lg bg-white/[0.03] border border-white/5 flex flex-col justify-between"
                   >
-                    <span>{col.name}</span>
-                    <span>{col.type}</span>
+                    <span className="text-xs font-medium text-zinc-200 truncate" title={col.name}>
+                      {formatColumnName(col.name)}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-mono mt-1">
+                      {col.type}
+                    </span>
                   </div>
                 ))}
-              </div>
-            </details>
-          )}
-
-          {/* Data preview expandable section */}
-          {dataset.preview_data && dataset.preview_data.length > 0 && (
-            <details className="mt-4">
-              <summary className="cursor-pointer rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-400 hover:bg-white/[0.05] transition-colors">
-                Data preview ({dataset.preview_data.length} rows)
-              </summary>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      {dataset.schema.map((col) => (
-                        <th
-                          key={col.name}
-                          className="px-6 py-3 text-xs font-medium uppercase tracking-wider text-zinc-500"
-                        >
-                          {formatColumnName(col.name)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dataset.preview_data.slice(0, 5).map((row, rowIdx) => (
-                      <tr key={rowIdx}>
-                        {dataset.schema.map((col) => {
-                          const value = row[col.name];
-                          return (
-                            <td
-                              key={col.name}
-                              className={`px-6 py-3 text-zinc-300 ${
-                                isCurrencyColumn(col.name) ? "font-mono text-right" : ""
-                              }`}
-                            >
-                              {value !== undefined && value !== null
-                                ? typeof value === "number"
-                                ? formatNumber(value as number)
-                                  : String(value).replace(/_/g, " ")
-                                : "—"}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             </details>
           )}

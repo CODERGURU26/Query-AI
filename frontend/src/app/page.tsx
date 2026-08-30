@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Upload, Database, FileText, X } from "lucide-react";
 import { addToHistory, clearHistory } from "@/lib/history";
 import type { QueryResponse, HistoryEntryWithSource } from "@/types/query";
 
@@ -18,18 +18,9 @@ import SQLViewer from "@/components/SQLViewer";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import DataSourceStatus from "@/components/DataSourceStatus";
-import CsvUploader from "@/components/CsvUploader";
+import CsvUploader, { type CsvDataset } from "@/components/CsvUploader";
 import Sidebar from "@/components/Sidebar";
 import SuggestedQuestions from "@/components/SuggestedQuestions";
-
-interface CsvDataset {
-  dataset_id: string | null;
-  filename: string | null;
-  rows: number;
-  columns: number;
-  schema: { name: string; type: string }[];
-  preview_data?: Record<string, unknown>[];
-}
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -38,6 +29,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [historyKey, setHistoryKey] = useState(0);
   const [csvDataset, setCsvDataset] = useState<CsvDataset | null>(null);
+  const [showUploader, setShowUploader] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -53,7 +45,7 @@ export default function Home() {
       let data: QueryResponse;
 
       if (csvDataset && csvDataset.dataset_id) {
-        // Query against CSV dataset
+        // Query against custom CSV dataset
         const dataResp = await fetch(`${apiUrl}/csv/query`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -122,27 +114,83 @@ export default function Home() {
     setError("");
   }
 
+  function handleUploadComplete(uploaded: CsvDataset) {
+    setCsvDataset(uploaded);
+    setShowUploader(false);
+    setResponse(null);
+    setError("");
+  }
+
+  function handleClearCsv() {
+    setCsvDataset(null);
+    setShowUploader(false);
+    setResponse(null);
+    setError("");
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-[#09090b]">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#09090b]/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shadow-md">
-              <Sparkles size={18} className="text-black" />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shadow-md">
+                <Sparkles size={18} className="text-black" />
+              </div>
+              <div>
+                <span className="text-lg font-semibold tracking-tight text-white block">
+                  QueryAI
+                </span>
+                <span className="text-[10px] text-zinc-500 hidden sm:block">
+                  Natural Language Analytics
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-lg font-semibold tracking-tight text-white block">
-                QueryAI
-              </span>
-              <span className="text-[10px] text-zinc-500 mt-1 block">
-                Ask questions about your data in plain English.
-              </span>
+
+            {/* Source Switcher Buttons */}
+            <div className="hidden md:flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/10 ml-4">
+              <button
+                onClick={() => {
+                  if (csvDataset) handleClearCsv();
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                  !csvDataset
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <Database size={12} />
+                <span>PostgreSQL</span>
+              </button>
+
+              <button
+                onClick={() => setShowUploader(true)}
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg transition-all ${
+                  csvDataset
+                    ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <FileText size={12} />
+                <span>{csvDataset ? csvDataset.filename : "Custom CSV"}</span>
+              </button>
             </div>
           </div>
 
-          <DataSourceStatus onSelectHistory={handleSelectQuestion} />
-          <HealthIndicator />
+          <div className="flex items-center gap-3">
+            {/* Quick Upload CSV Button */}
+            <button
+              onClick={() => setShowUploader((prev) => !prev)}
+              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3.5 py-1.5 text-xs font-medium text-violet-300 hover:bg-violet-500/20 transition-all shadow-sm"
+            >
+              <Upload size={13} />
+              <span>{csvDataset ? "Manage CSV" : "Upload CSV"}</span>
+            </button>
+
+            <DataSourceStatus onSelectHistory={handleSelectQuestion} />
+            <HealthIndicator />
+          </div>
         </div>
       </header>
 
@@ -163,7 +211,53 @@ export default function Home() {
         />
 
         {/* Main Console */}
-        <main className="flex-1 space-y-8 min-w-0">
+        <main className="flex-1 space-y-6 min-w-0">
+          {/* Active CSV Dataset Badge */}
+          {csvDataset && !showUploader && (
+            <div className="flex items-center justify-between p-3.5 px-4 rounded-xl border border-violet-500/30 bg-violet-500/10 animate-in fade-in duration-300">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/20 text-violet-300 shrink-0">
+                  <FileText size={15} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-white truncate">
+                    Active Dataset: <span className="text-violet-300">{csvDataset.filename}</span>
+                  </p>
+                  <p className="text-[11px] text-zinc-400">
+                    {csvDataset.rows} rows · {csvDataset.columns} columns · All queries target this CSV
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setShowUploader(true)}
+                  className="px-2.5 py-1 text-xs font-medium text-violet-300 hover:text-white hover:bg-violet-500/20 rounded-lg transition-colors"
+                >
+                  View Schema
+                </button>
+                <button
+                  onClick={handleClearCsv}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-zinc-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                  title="Switch back to PostgreSQL"
+                >
+                  <X size={13} />
+                  <span>Return to PostgreSQL</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* CSV Uploader & Manager Panel (Collapsible/Toggleable) */}
+          {showUploader && (
+            <CsvUploader
+              dataset={csvDataset}
+              onUploadComplete={handleUploadComplete}
+              onClose={() => setShowUploader(false)}
+              onClearDataset={handleClearCsv}
+            />
+          )}
+
           {/* Query Formulation Section */}
           <section className="space-y-4">
             <QueryInput
@@ -173,7 +267,12 @@ export default function Home() {
               loading={loading}
             />
 
-            <ExampleQuestions onSelect={handleSelectQuestion} disabled={loading} />
+            <ExampleQuestions
+              onSelect={handleSelectQuestion}
+              disabled={loading}
+              csvDataset={csvDataset}
+            />
+
             <SuggestedQuestions
               response={response}
               onSelect={(q) => handleAsk(q)}
@@ -198,7 +297,7 @@ export default function Home() {
                 {/* KPI/Summary Cards */}
                 <KPICards columns={response.columns} data={response.data} />
 
-                {/* Visualizations (if applicable) */}
+                {/* Visualizations */}
                 <SmartChart columns={response.columns} data={response.data} />
 
                 {/* Raw Dataset Table View */}
@@ -212,15 +311,8 @@ export default function Home() {
             )}
 
             {/* 4. Empty Landing State */}
-            {!response && !loading && !error && <EmptyState />}
-
-            {/* 5. CSV Uploader */}
-            {csvDataset && !response && (
-              <CsvUploader
-                dataset={csvDataset}
-                onQuestion={(q) => (q ? handleAsk(q) : undefined)}
-                onUploadComplete={(uploaded) => setCsvDataset(uploaded)}
-              />
+            {!response && !loading && !error && !showUploader && (
+              <EmptyState onUploadCsv={() => setShowUploader(true)} />
             )}
           </section>
         </main>
