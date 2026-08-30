@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import { formatColumnName, formatDisplayValue } from "./formatting";
 
 /**
@@ -12,8 +11,6 @@ import { formatColumnName, formatDisplayValue } from "./formatting";
 export function exportCSV(columns: string[], data: Record<string, unknown>[]) {
   if (!data || data.length === 0) return;
 
-  // Generate a meaningful filename based on the question/data
-  const timestamp = new Date().toISOString().split("T")[0];
   const safeFilename = generateFilename(columns, data.length);
 
   // Prepare header row - sanitize column names
@@ -40,7 +37,7 @@ export function exportCSV(columns: string[], data: Record<string, unknown>[]) {
   );
 
   // Build full CSV: header + rows
-  const csvContent = [sanitizedHeaders, ...sanitizedRows].join("\n");
+  const csvContent = [sanitizedHeaders.join(","), ...sanitizedRows].join("\n");
 
   // Trigger download
   const blob = new Blob([csvContent], {
@@ -51,7 +48,7 @@ export function exportCSV(columns: string[], data: Record<string, unknown>[]) {
   const link = document.createElement("a");
   link.setAttribute("href", url);
   link.setAttribute("download", safeFilename);
-  link.style("visibility", "hidden");
+  link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -64,10 +61,8 @@ export function exportCSV(columns: string[], data: Record<string, unknown>[]) {
  */
 function generateFilename(columns: string[], rowCount: number): string {
   // Try to derive a meaningful prefix from column names
-  // Use the first numeric/important column name, or a generic prefix
   let prefix = "queryai-result";
 
-  // Look for common sales/metric column names for meaningful filename
   for (const col of columns) {
     const lower = col.toLowerCase();
     if (
@@ -78,7 +73,6 @@ function generateFilename(columns: string[], rowCount: number): string {
       lower.includes("revenue") ||
       lower.includes("total")
     ) {
-      // Use a short version of the column name
       const shortName = col
         .replace(/_/g, "-")
         .replace(/\s/g, "-")
@@ -96,14 +90,17 @@ function generateFilename(columns: string[], rowCount: number): string {
 
   // Append timestamp and row count info
   const countTag = rowCount > 0 ? `-${rowCount}rows` : "";
-  const dateTag = timestamp.replace(/-/g, "");
+  const dateTag = new Date().toISOString().split("T")[0].replace(/-/g, "");
 
-  return `queryai-${sanitized}${countTag}-${dateTag}.csv`;
+  return `${sanitized}${countTag}-${dateTag}.csv`;
 }
 
 /**
  * Import CSV file from user upload.
  * Returns parsed data with metadata.
+ *
+ * Uses a proper RFC4180-style line splitter so quoted fields containing
+ * commas/newlines round-trip correctly with exportCSV above.
  *
  * @param file - CSV file uploaded by user
  * @returns Parsed CSV data and metadata
@@ -117,66 +114,42 @@ export async function importCSV(file: File): Promise<{
   missingValues: Record<string, number>;
 }> {
   const content = await file.text();
+  const normalized = content.replace(/\r\n|\r/g, "\n");
 
-  // Parse CSV
-  const parser = new DOMParser();
-  const parsed = parser.parseFromString(
-    content.replace(/\r\n|\r/g, "\n"),
-    "text/csv"
-  );
-
-  const rows: string[][] = [];
-  const headers: string[] = [];
-
-  // Simple CSV parsing
-  const lines = parsed.querySelectorAll("tr");
-  lines.forEach((line, i) => {
-    const cells = line.querySelectorAll("td, th");
-    const row: string[] = [];
-    cells.forEach((cell) => {
-      const text = cell.textContent || "";
-      row.push(text);
-    });
-    if (i === 0) {
-      headers.push(...row);
-    } else {
-      rows.push(row);
-    }
-  });
-
-  // If DOMParser didn't work, fall back to manual parsing
-  if (headers.length === 0) {
-    // Manual CSV parsing fallback
-    const linesArray = content.split("\n");
-    linesArray.forEach((line, i) => {
-      // Simple split by comma (not handling quoted fields perfectly)
-      const cells = line.split(",");
-      if (i === 0) {
-        headers.push(...cells.map((c) => c.trim()));
-      } else {
-        rows.push(cells.map((c) => c.trim()));
-      }
-    });
+  const records = parseCsvText(normalized);
+  if (records.length === 0) {
+    return {
+      data: [],
+      columns: [],
+      schema: [],
+      filename: file.name,
+      rows: 0,
+      missingValues: {},
+    };
   }
 
-  // Clean up headers - remove quotes if present
-  const cleanHeaders = headers.map((h) => h.replace(/^"|"$/g, ""));
+  // Clean up headers - remove wrapping quotes if present
+  const cleanHeaders = records[0].map((h) => h.replace(/^"|"$/g, "").trim());
+  const rows = records.slice(1);
 
   // Build data records
   const data: Record<string, unknown>[] = [];
   rows.forEach((row) => {
+    // Skip fully blank trailing lines
+    if (row.length === 1 && row[0] === "") return;
+
     const record: Record<string, unknown> = {};
     row.forEach((cell, i) => {
       if (i < cleanHeaders.length) {
-        // Try to detect type
-        if (/^\d+$/.test(cell)) {
-          record[cleanHeaders[i]] = Number(cell);
-        } else if (/^\d{4}-\d{2}-\d{2}$/.test(cell)) {
-          record[cleanHeaders[i]] = cell; // Keep as string date
-        } else if (cell === "") {
+        const trimmed = cell.trim();
+        if (trimmed === "") {
           record[cleanHeaders[i]] = null;
+        } else if (/^-?\d+\.?\d*$/.test(trimmed)) {
+          record[cleanHeaders[i]] = Number(trimmed);
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          record[cleanHeaders[i]] = trimmed; // Keep as string date
         } else {
-          record[cleanHeaders[i]] = cell;
+          record[cleanHeaders[i]] = trimmed;
         }
       }
     });
@@ -207,6 +180,66 @@ export async function importCSV(file: File): Promise<{
     rows: data.length,
     missingValues,
   };
+}
+
+/**
+ * Minimal RFC4180-style CSV line/field parser: handles quoted fields
+ * containing commas, escaped quotes (""), and embedded newlines.
+ */
+function parseCsvText(text: string): string[][] {
+  const records: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\n") {
+      row.push(field);
+      field = "";
+      records.push(row);
+      row = [];
+    } else {
+      field += char;
+    }
+  }
+
+  // Flush trailing field/row
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    records.push(row);
+  }
+
+  // Drop fully empty trailing records
+  while (
+    records.length > 0 &&
+    records[records.length - 1].length === 1 &&
+    records[records.length - 1][0] === ""
+  ) {
+    records.pop();
+  }
+
+  return records;
 }
 
 /**
