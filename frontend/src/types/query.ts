@@ -22,7 +22,7 @@ export interface HistoryEntryWithSource extends HistoryEntry {
   dataset_id?: string;
 }
 
-export type ChartType = "bar" | "horizontal-bar" | "line" | "pie" | "grouped-bar";
+export type ChartType = "bar" | "horizontal-bar" | "line" | "area" | "pie" | "grouped-bar";
 
 export interface ChartConfig {
   type: ChartType;

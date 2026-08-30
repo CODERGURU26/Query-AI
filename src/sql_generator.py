@@ -43,30 +43,34 @@ DATABASE SCHEMA:
 
 def clean_sql(response_text):
     """
-    Clean SQL returned by the model.
+    Clean SQL returned by the model. Extracts SQL from markdown blocks,
+    removes conversational preamble/postamble, and strips leading comments.
     """
-    sql = response_text.strip()
+    if not response_text:
+        return ""
 
-    sql = re.sub(
-        r"^```sql\s*",
-        "",
-        sql,
-        flags=re.IGNORECASE
-    )
+    text = response_text.strip()
 
-    sql = re.sub(
-        r"^```\s*",
-        "",
-        sql
-    )
+    if text.upper() == "UNANSWERABLE":
+        return "UNANSWERABLE"
 
-    sql = re.sub(
-        r"\s*```$",
-        "",
-        sql
-    )
+    # 1. Extract from markdown code block if present
+    match = re.search(r"```(?:sql)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    if match:
+        text = match.group(1).strip()
 
-    return sql.strip()
+    # 2. Strip leading SQL comments (-- ... or /* ... */)
+    text = re.sub(r"^\s*--.*?\n", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*/\*[\s\S]*?\*/\s*", "", text)
+
+    # 3. If text doesn't start with SELECT or WITH, find the first occurrence
+    if not re.match(r"^(SELECT|WITH)\b", text.strip(), re.IGNORECASE):
+        find_stmt = re.search(r"\b(SELECT|WITH)\b[\s\S]*", text, re.IGNORECASE)
+        if find_stmt:
+            text = find_stmt.group(0).strip()
+
+    # Strip trailing semicolon and whitespace
+    return text.strip().rstrip(";").strip()
 
 
 def validate_sql(sql):
@@ -79,10 +83,13 @@ def validate_sql(sql):
     if sql.upper() == "UNANSWERABLE":
         return False
 
-    normalized = sql.strip().upper()
+    # Remove comments for validation check
+    clean_check = re.sub(r"--.*?\n", "\n", sql)
+    clean_check = re.sub(r"/\*[\s\S]*?\*/", "", clean_check).strip()
+    normalized = clean_check.upper()
 
     # Reject multiple statements
-    semicolon_split = [p.strip() for p in sql.split(";") if p.strip()]
+    semicolon_split = [p.strip() for p in clean_check.split(";") if p.strip()]
     if len(semicolon_split) > 1:
         raise ValueError("Multiple SQL statements are not allowed.")
 
