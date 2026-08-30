@@ -2,8 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { Clock, X, Trash2 } from "lucide-react";
-import { getHistory, clearHistory } from "@/lib/history";
-import type { HistoryEntry } from "@/types/query";
+import {
+  getHistory,
+  clearHistory,
+  getHistoryEntries,
+  addToHistory,
+  formatTime,
+  getSourceLabel,
+  getSourceColor,
+} from "@/lib/history";
+import type { HistoryEntryWithSource } from "@/types/query";
 
 interface QueryHistoryProps {
   onSelect: (question: string) => void;
@@ -14,11 +22,11 @@ export default function QueryHistory({
   onSelect,
   refreshKey,
 }: QueryHistoryProps) {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [entries, setEntries] = useState<HistoryEntryWithSource[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    setEntries(getHistory());
+    setEntries(getHistoryEntries());
   }, [refreshKey]);
 
   function handleClear() {
@@ -75,7 +83,7 @@ export default function QueryHistory({
                   {entry.question}
                 </p>
                 <p className="text-[10px] text-zinc-600 group-hover:text-zinc-500 mt-0.5">
-                  {formatTime(entry.timestamp)}
+                  {formatTime(entry.timestamp)} · {getSourceLabel(entry.source)}
                 </p>
               </button>
             ))}
@@ -140,7 +148,7 @@ export default function QueryHistory({
                 >
                   <p className="truncate">{entry.question}</p>
                   <p className="text-[10px] text-zinc-600 mt-0.5">
-                    {formatTime(entry.timestamp)}
+                    {formatTime(entry.timestamp)} · {getSourceLabel(entry.source)}
                   </p>
                 </button>
               ))}

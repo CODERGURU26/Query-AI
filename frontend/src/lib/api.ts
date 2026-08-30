@@ -31,3 +31,66 @@ export async function checkHealth(): Promise<boolean> {
     return false;
   }
 }
+
+// CSV API functions
+
+export interface CSVUploadResponse {
+  dataset_id: string;
+  filename: string;
+  rows: number;
+  columns: number;
+  schema: { name: string; type: string }[];
+}
+
+export interface CSVQueryRequest {
+  question: string;
+  dataset_id: string;
+}
+
+export interface CSVQueryResponse {
+  question: string;
+  source: string;
+  dataset_id: string;
+  sql: string | null;
+  answer: string;
+  columns: string[];
+  data: Record<string, unknown>[];
+  summary: Record<string, any>;
+  visualization: Record<string, any>;
+}
+
+export async function csvUpload(file: File): Promise<CSVUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_URL}/csv/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.detail || "CSV upload failed.");
+  }
+
+  return data as CSVUploadResponse;
+}
+
+export async function csvQuery(
+  request: CSVQueryRequest
+): Promise<CSVQueryResponse> {
+  const res = await fetch(`${API_URL}/csv/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.detail || "CSV query failed.");
+  }
+
+  return data as CSVQueryResponse;
+}

@@ -1,8 +1,8 @@
 "use client";
 
-import { Table2 } from "lucide-react";
-import { formatDisplayValue, formatColumnName } from "@/lib/formatting";
-import ExportButton from "./ExportButton";
+import { Download } from "lucide-react";
+import { formatColumnName, formatDisplayValue, formatNumber } from "@/lib/formatting";
+import { exportCSV as exportNativeCSV } from "@/lib/csv";
 
 interface DataTableProps {
   columns: string[];
@@ -22,7 +22,7 @@ export default function DataTable({ columns, data }: DataTableProps) {
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400">
-            <Table2 size={14} />
+            <Download size={14} />
           </div>
           <div>
             <h2 className="font-semibold text-white">Data</h2>
@@ -31,6 +31,7 @@ export default function DataTable({ columns, data }: DataTableProps) {
             </p>
           </div>
         </div>
+
         <ExportButton columns={columns} data={data} />
       </div>
 
@@ -77,4 +78,70 @@ export default function DataTable({ columns, data }: DataTableProps) {
       </div>
     </div>
   );
+}
+
+interface ExportButtonProps {
+  columns: string[];
+  data: Record<string, unknown>[];
+}
+
+export function ExportButton({ columns, data }: ExportButtonProps) {
+  if (!data || data.length === 0) return null;
+
+  return (
+    <button
+      id="export-csv"
+      onClick={() => exportCSV(columns, data)}
+      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-zinc-400 transition-all hover:bg-white/[0.06] hover:text-white"
+      aria-label="Export results as CSV"
+    >
+      <Download size={14} />
+      Export CSV
+    </button>
+  );
+}
+
+function exportCSV(columns: string[], data: Record<string, unknown>[]) {
+  // Use the native CSV export from lib/csv
+  if (typeof exportNativeCSV === "function") {
+    exportNativeCSV(columns, data);
+    return;
+  }
+
+  // Fallback: manual CSV generation
+  // Prepare headers
+  const sanitizedColumns = columns.map((col) =>
+    `"${col.replace(/"/g, '""')}"`
+  );
+
+  // Prepare rows
+  const sanitizedRows = data.map((row) =>
+    columns.map((col) => {
+      const value = row[col];
+      if (value === null || value === undefined) {
+        return "";
+      }
+      const strValue = String(value);
+      // If value contains comma, quote, or newline, wrap in quotes
+      if (strValue.includes(",") || strValue.includes('"') || strValue.includes("\n")) {
+        return `"${strValue.replace(/"/g, '""')}"`;
+      }
+      return strValue;
+    })
+  );
+
+  // Build CSV string
+  const csvString = [sanitizedColumns.join(","), ...sanitizedRows.join("\n")].join("\n");
+
+  // Trigger download
+  const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "query-results.csv");
+  link.style("visibility", "hidden");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }

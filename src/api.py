@@ -1,11 +1,18 @@
 import os
+from typing import List, Dict, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.query_engine import process_question
-
+from src.csv_parser import parse_csv_content, CSVValidationError
+from src.csv_engine import (
+    initialize_csv_dataset,
+    process_csv_question,
+    cleanup_expired_datasets,
+    dataset_exists,
+)
 
 app = FastAPI(
     title="QueryAI API",
@@ -26,8 +33,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class QueryRequest(BaseModel):
     question: str
+
+
+class CSVUploadResponse(BaseModel):
+    dataset_id: str
+    filename: str
+    rows: int
+    columns: int
+    schema: List[Dict[str, str]]
+
+
+class CSVQueryRequest(BaseModel):
+    question: str
+    dataset_id: str
+
+
+class CSVQueryResponse(BaseModel):
+    question: str
+    source: str
+    dataset_id: str
+    sql: str | None
+    answer: str
+    columns: List[str]
+    data: List[Dict[str, Any]]
+    summary: Dict[str, Any]
+    visualization: Dict[str, Any]
 
 
 @app.get("/")
@@ -58,21 +91,94 @@ def query_database(request: QueryRequest):
         )
 
     try:
-
         result = process_question(question)
-
         return result
-
     except ValueError as e:
-
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
-
     except Exception as e:
-
         raise HTTPException(
             status_code=500,
+            detail="QueryAI couldn't answer this question."
+        )
+
+
+@app.post("/csv/upload")
+def csv_upload(file: UploadFile = File(...)):
+    """
+    Upload and parse a CSV file.
+    Returns dataset metadata and ID for subsequent queries.
+    """
+    # Read file content
+    content = file.read()
+
+    # Validate and parse
+    try:
+        parsed = parse_csv_content(file)
+    except CSVValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Could not parse the uploaded CSV file.")
+
+    # Create dataset ID (use a hash-based ID that doesn't expose filesystem paths)
+    import hashlib
+    dataset_id = hashlib.sha256(
+        f"{parsed['filename']}_{content[:20]}".encode()
+    ).hexdigest()[:12]
+
+    # Initialize the dataset in memory
+    try:
+        info = initialize_csv_dataset(dataset_id, parsed["filename"], parsed)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Could not initialize CSV dataset.")
+
+    return CSVUploadResponse(
+        dataset_id=dataset_id,
+        filename=parsed["filename"],
+        rows=parsed["rows"],
+        columns=parsed["columns"],
+        schema=[{"name": col, "type": col_type} for col, col_type in parsed["column_types"].items()]
+    )
+
+
+@app.post("/csv/query", response_model=CSVQueryResponse)
+def csv_query(request: CSVQueryRequest):
+    """
+    Ask a question against an uploaded CSV dataset.
+    Returns the same structured response format as PostgreSQL queries.
+    """
+    dataset_id = request.dataset_id
+    question = request.question.strip()
+
+    if not question:
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty."
+        )
+
+    if not dataset_exists(dataset_id):
+        raise HTTPException(
+            status_code=404,
+            detail="CSV dataset is no longer available."
+        )
+
+    try:
+        result = process_csv_question(question, dataset_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
             detail=str(e)
         )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="QueryAI couldn't answer this question."
+        )
+
+
+def cleanup_old_datasets():
+    """Cleanup expired CSV datasets. Call periodically."""
+    cleanup_expired_datasets()
