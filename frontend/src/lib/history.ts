@@ -61,6 +61,18 @@ export function getHistoryEntries(): HistoryEntryWithSource[] {
   return getHistory();
 }
 
+/**
+ * Checks whether a given dataset_id is present among any stored history entries.
+ * This only confirms the id was seen locally — it does not verify the dataset
+ * still exists on the backend (e.g. an uploaded CSV cleared from server memory
+ * after a restart would still "exist" here). If that distinction matters,
+ * replace this with an async check against your backend instead.
+ */
+export function datasetExists(dataset_id: string): boolean {
+  if (!dataset_id) return false;
+  return getHistory().some((entry) => entry.dataset_id === dataset_id);
+}
+
 function formatTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);

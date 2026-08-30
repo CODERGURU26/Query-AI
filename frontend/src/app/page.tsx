@@ -127,7 +127,7 @@ export default function Home() {
             </div>
           </div>
 
-          <DataSourceStatus onSelectHistory={() => {/* */} />
+          <DataSourceStatus onSelectHistory={() => {/* */} }/>
           <HealthIndicator />
         </div>
       </header>

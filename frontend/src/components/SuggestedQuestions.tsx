@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Sparkles } from "lucide-react";
 import { formatColumnName } from "@/lib/formatting";
 
 interface SuggestedQuestionsProps {
@@ -67,7 +67,7 @@ export default function SuggestedQuestions({
 
     // Generate 3-4 suggestions from available columns
     const suggestions: string[] = [];
-    const used = new Set();
+    const used = new Set<string>();
 
     // Add suggestions based on first few columns
     for (let i = 0; i < Math.min(columns.length, 4); i++) {
@@ -95,7 +95,7 @@ export default function SuggestedQuestions({
     schema: { name: string; type: string }[]
   ): string[] {
     const suggestions: string[] = [];
-    const used = new Set<>();
+    const used = new Set<string>();
 
     // Separate numeric and text columns
     const numericCols: string[] = [];
@@ -156,18 +156,11 @@ export default function SuggestedQuestions({
         {suggestions.map((suggestion, i) => (
           <button
             key={i}
-            onClick={() => {
-              // Populate the question and ask
-              const trimmed = suggestion.trim();
-              setQuestion(trimmed);
-              // Don't automatically submit - let user edit first
-              // Or auto-submit if preferred:
-              // onSelect(trimmed);
-            }}
+            onClick={() => onSelect(suggestion.trim())}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-zinc-400 transition-all hover:bg-white/[0.05] hover:text-white"
             aria-label={`Suggested question: ${suggestion}`}
           >
-            {Sparkles.size === 14 ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M8 8L12 12L16 8"/></svg> : <Lightbulb size={14} className="text-violet-400" />}
+            <Sparkles size={14} className="text-violet-400" />
             <span>{suggestion}</span>
           </button>
         ))}
