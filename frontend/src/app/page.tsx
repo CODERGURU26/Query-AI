@@ -11,6 +11,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import ResultChart from "@/components/ResultCharts";
+
 interface QueryResponse {
   question: string;
   sql: string | null;
@@ -32,8 +34,10 @@ export default function Home() {
     setError("");
     setResponse(null);
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/query", {
+      const res = await fetch(`${API_URL}/query`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -224,11 +228,89 @@ function Results({ response }: { response: QueryResponse }) {
           </h2>
         </div>
         <div className="prose prose-invert max-w-none text-sm leading-7 text-zinc-300">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              h1: ({ children }) => (
+                <h1 className="text-xl font-semibold text-white mt-6 mb-3">
+                  {children}
+                </h1>
+              ),
+
+              h2: ({ children }) => (
+                <h2 className="text-lg font-semibold text-white mt-6 mb-3">
+                  {children}
+                </h2>
+              ),
+
+              h3: ({ children }) => (
+                <h3 className="text-base font-semibold text-white mt-5 mb-2">
+                  {children}
+                </h3>
+              ),
+
+              p: ({ children }) => (
+                <p className="mb-3 text-zinc-300">
+                  {children}
+                </p>
+              ),
+
+              strong: ({ children }) => (
+                <strong className="font-semibold text-white">
+                  {children}
+                </strong>
+              ),
+
+              ol: ({ children }) => (
+                <ol className="list-decimal pl-6 space-y-2">
+                  {children}
+                </ol>
+              ),
+
+              ul: ({ children }) => (
+                <ul className="list-disc pl-6 space-y-2">
+                  {children}
+                </ul>
+              ),
+
+              table: ({ children }) => (
+                <div className="overflow-x-auto my-5 rounded-lg border border-zinc-800">
+                  <table className="w-full text-sm">
+                    {children}
+                  </table>
+                </div>
+              ),
+
+              th: ({ children }) => (
+                <th className="px-4 py-3 text-left font-medium text-zinc-300 bg-zinc-900 border-b border-zinc-800">
+                  {children}
+                </th>
+              ),
+
+              td: ({ children }) => (
+                <td className="px-4 py-3 text-zinc-300 border-b border-zinc-900">
+                  {children}
+                </td>
+              ),
+
+              code: ({ children }) => (
+                <code className="rounded bg-zinc-900 px-1.5 py-0.5 text-zinc-200">
+                  {children}
+                </code>
+              ),
+            }}
+          >
             {response.answer}
           </ReactMarkdown>
         </div>
       </div>
+
+      {response.data.length > 1 && (
+        <ResultChart
+          columns={response.columns}
+          data={response.data}
+        />
+      )}
 
       {/* Results Table */}
       {response.data.length > 0 && (
