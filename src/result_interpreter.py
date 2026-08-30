@@ -1,23 +1,9 @@
 import os
-
 import pandas as pd
 from dotenv import load_dotenv
-from google import genai
-
+from src.llm_client import generate_response
 
 load_dotenv()
-
-
-API_KEY = os.getenv("GEMINI_API_KEY")
-
-if not API_KEY:
-    raise ValueError("GEMINI_API_KEY is not configured.")
-
-
-client = genai.Client(api_key=API_KEY)
-
-MODEL = "gemini-3.6-flash"
-
 
 SYSTEM_PROMPT = """
 You are QueryAI, an expert business data analyst.
@@ -62,7 +48,6 @@ def dataframe_to_text(df: pd.DataFrame) -> str:
     """
     Convert a pandas DataFrame into a format suitable for the LLM.
     """
-
     if df.empty:
         return "NO RESULTS"
 
@@ -73,7 +58,6 @@ def interpret_result(question: str, df: pd.DataFrame) -> str:
     """
     Interpret SQL query results and produce a human-readable answer.
     """
-
     if not question.strip():
         raise ValueError("Question cannot be empty.")
 
@@ -92,12 +76,7 @@ QUERY RESULT:
 Analyze the query result and answer the user's question.
 """
 
-    interaction = client.interactions.create(
-        model=MODEL,
-        input=prompt,
-    )
-
-    answer = interaction.output_text.strip()
+    answer = generate_response(prompt)
 
     if not answer:
         raise ValueError("The result interpreter returned an empty response.")

@@ -1,27 +1,13 @@
 import os
 import re
-
 from dotenv import load_dotenv
-from google import genai
 
 from src.schema import get_llm_schema_context
 from src.sql_executor import execute_sql
 from src.result_interpreter import interpret_result
-
+from src.llm_client import generate_response
 
 load_dotenv()
-
-
-API_KEY = os.getenv("GEMINI_API_KEY")
-
-if not API_KEY:
-    raise ValueError("GEMINI_API_KEY is not configured.")
-
-
-client = genai.Client(api_key=API_KEY)
-
-MODEL = "gemini-3.6-flash"
-
 
 SYSTEM_PROMPT = """
 You are QueryAI, an expert PostgreSQL SQL generator.
@@ -59,7 +45,6 @@ def clean_sql(response_text):
     """
     Clean SQL returned by the model.
     """
-
     sql = response_text.strip()
 
     sql = re.sub(
@@ -86,9 +71,8 @@ def clean_sql(response_text):
 
 def validate_sql(sql):
     """
-    Basic safety validation.
+    Enhanced safety validation.
     """
-
     if not sql:
         raise ValueError("The model returned an empty response.")
 
@@ -97,28 +81,34 @@ def validate_sql(sql):
 
     normalized = sql.strip().upper()
 
-    if not normalized.startswith("SELECT"):
-        raise ValueError(
-            "Generated SQL is not a SELECT statement."
-        )
+    # Reject multiple statements
+    semicolon_split = [p.strip() for p in sql.split(";") if p.strip()]
+    if len(semicolon_split) > 1:
+        raise ValueError("Multiple SQL statements are not allowed.")
+
+    # Reject queries starting with anything other than SELECT or WITH
+    if not (normalized.startswith("SELECT") or normalized.startswith("WITH")):
+        raise ValueError("SQL query must start with SELECT or WITH.")
 
     forbidden = [
-        "INSERT ",
-        "UPDATE ",
-        "DELETE ",
-        "DROP ",
-        "ALTER ",
-        "TRUNCATE ",
-        "CREATE ",
-        "GRANT ",
-        "REVOKE ",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "ALTER",
+        "TRUNCATE",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "REPLACE",
+        "MERGE",
     ]
 
     for keyword in forbidden:
-
-        if keyword in normalized:
+        pattern = r"\b" + keyword + r"\b"
+        if re.search(pattern, normalized):
             raise ValueError(
-                f"Unsafe SQL detected: {keyword.strip()}"
+                f"Unsafe SQL detected: {keyword}"
             )
 
     return True
@@ -128,7 +118,6 @@ def generate_sql(question):
     """
     Convert natural-language question into SQL.
     """
-
     schema_context = get_llm_schema_context()
 
     prompt = (
@@ -138,14 +127,11 @@ def generate_sql(question):
         + question
     )
 
-    interaction = client.interactions.create(
-        model=MODEL,
-        input=prompt,
-    )
+    response_text = generate_response(prompt)
+    sql = clean_sql(response_text)
 
-    sql = interaction.output_text
-
-    sql = clean_sql(sql)
+    if sql.upper() == "UNANSWERABLE":
+        return "UNANSWERABLE"
 
     validate_sql(sql)
 
@@ -153,7 +139,6 @@ def generate_sql(question):
 
 
 def main():
-
     print("=" * 80)
     print("QUERYAI")
     print("=" * 80)
@@ -165,68 +150,57 @@ def main():
         return
 
     try:
-
         # --------------------------------------------------
         # STEP 1: Generate SQL
         # --------------------------------------------------
-
         sql = generate_sql(question)
 
         print("\n" + "=" * 80)
         print("GENERATED SQL")
         print("=" * 80)
-
         print(sql)
+
+        if sql.upper() == "UNANSWERABLE":
+            print("\nThis question cannot be answered using the database schema.")
+            return
 
         # --------------------------------------------------
         # STEP 2: Execute SQL
         # --------------------------------------------------
-
         print("\n" + "=" * 80)
         print("EXECUTING SQL")
         print("=" * 80)
-
         result = execute_sql(sql)
 
         # --------------------------------------------------
         # STEP 3: Display raw query result
         # --------------------------------------------------
-
         print("\n" + "=" * 80)
         print("QUERY RESULT")
         print("=" * 80)
 
         if result.empty:
             print("No results found.")
-
         else:
             print(result.to_string(index=False))
 
         # --------------------------------------------------
         # STEP 4: Interpret result
         # --------------------------------------------------
-
         print("\n" + "=" * 80)
         print("QUERYAI ANSWER")
         print("=" * 80)
-
         answer = interpret_result(question, result)
-
         print(answer)
-
 
         print("\n" + "=" * 80)
         print("QUERY EXECUTION SUCCESSFUL")
         print("=" * 80)
 
-       
-
     except Exception as e:
-
         print("\n" + "=" * 80)
         print("ERROR")
         print("=" * 80)
-
         print(str(e))
 
 
