@@ -9,7 +9,7 @@ load_dotenv()
 logger = logging.getLogger("QueryAI.LLMClient")
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-20b:free")
+MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-4-31b-it:free")
 TIMEOUT_SECONDS = 30
 MAX_RETRIES = 2
 
@@ -66,6 +66,10 @@ def generate_response(prompt: str) -> str:
             # Authentication failures
             if response.status_code in (401, 403):
                 raise ValueError("OpenRouter authentication failed. Check OPENROUTER_API_KEY.")
+
+            # Model unavailable
+            if response.status_code == 404:
+                raise ValueError("The configured model is unavailable. Check OPENROUTER_MODEL in .env.")
 
             # Rate limit or server errors: check if we should retry
             is_temporary = response.status_code == 429 or (500 <= response.status_code <= 599)
