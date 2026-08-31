@@ -103,8 +103,9 @@ def _generate_csv_sql(question: str, column_names: List[str], column_types: Dict
 
     try:
         response_text = generate_response(prompt)
-    except ValueError:
-        return None, True
+    except Exception as e:
+        print(f"CSV LLM ERROR: {type(e).__name__}: {e}")
+        raise
 
     sql = clean_sql(response_text)
 
@@ -114,10 +115,10 @@ def _generate_csv_sql(question: str, column_names: List[str], column_types: Dict
     # Validate SQL safety (same validation as PostgreSQL)
     try:
         validate_sql(sql)
-    except ValueError:
-        return None, True  # Treat validation failure as unanswerable
-
-    return sql, False
+    except ValueError as e:
+        print(f"CSV SQL VALIDATION ERROR: {e}")
+        print(f"Generated SQL: {sql}")
+        return None, True
 
 
 def process_csv_question(
