@@ -88,3 +88,5 @@ cache/
 credentials.json
 service-account.json
 secrets.json
+
+queryai_backup.dump
