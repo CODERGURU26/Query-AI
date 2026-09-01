@@ -10,6 +10,8 @@
 
 QueryAI lets users interact with structured data using plain English instead of writing SQL. Ask a question, get a structured, visualized answer — whether your data lives in a PostgreSQL database or a CSV file you just uploaded.
 
+![QueryAI Landing Page](./docs/screenshots/landing-page.png)
+
 ---
 
 ## Table of Contents
