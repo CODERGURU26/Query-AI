@@ -12,10 +12,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
 
 /* Custom scrollbar for premium feel */
@@ -43,3 +48,31 @@ body {
   color: #ffffff;
 }
 
+/* Landing animations */
+@keyframes landingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-fade-in {
+  animation: landingFadeIn 0.4s ease-out forwards;
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .landing-fade-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

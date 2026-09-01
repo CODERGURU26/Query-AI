@@ -13,8 +13,31 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QueryAI — AI-Powered E-commerce Analytics",
-  description: "Ask questions about your PostgreSQL database in plain English. QueryAI generates SQL, executes it, and explains the results.",
+  title: "QueryAI — AI-Powered Data Analytics",
+  description:
+    "Ask questions about your business data in natural language and instantly get analytics, visualizations, and insights with QueryAI.",
+  keywords: [
+    "AI Analytics",
+    "Natural Language SQL",
+    "E-Commerce Analytics",
+    "PostgreSQL Analytics",
+    "CSV Analysis",
+    "Business Intelligence",
+  ],
+  authors: [{ name: "QueryAI Team" }],
+  openGraph: {
+    title: "QueryAI — AI-Powered Data Analytics",
+    description:
+      "Ask questions about your business data in natural language and instantly get analytics, visualizations, and insights with QueryAI.",
+    type: "website",
+    siteName: "QueryAI",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "QueryAI — AI-Powered Data Analytics",
+    description:
+      "Ask questions about your business data in natural language and instantly get analytics, visualizations, and insights with QueryAI.",
+  },
 };
 
 export default function RootLayout({
@@ -27,8 +50,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#09090b] text-zinc-100">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#09090b] text-zinc-100">
+        {children}
+      </body>
     </html>
   );
 }
-
